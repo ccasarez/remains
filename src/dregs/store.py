@@ -530,9 +530,22 @@ def _run_schema_checks(
     abstract_classes = schema_classes & parents
     leaf_classes = schema_classes - parents
 
-    # Find instance subjects
-    schema_subjects = set(schema_graph.subjects())
-    instance_subjects = set(combined_graph.subjects()) - schema_subjects
+    # Find instance subjects — only exclude actual schema definitions,
+    # not every URI that appears as a subject in the schema graph.
+    _SCHEMA_DEF_TYPES = {
+        OWL.Class,
+        OWL.ObjectProperty,
+        OWL.DatatypeProperty,
+        OWL.AnnotationProperty,
+        OWL.Ontology,
+        RDFS.Class,
+        RDFS.Datatype,
+    }
+    schema_definitions: set[Node] = set()
+    for def_type in _SCHEMA_DEF_TYPES:
+        for s in schema_graph.subjects(RDF.type, def_type):
+            schema_definitions.add(s)
+    instance_subjects = set(combined_graph.subjects()) - schema_definitions
 
     # Provenance source URIs
     prov_sources: set[URIRef] = set()
