@@ -1,0 +1,49 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix data: <http://example.com/data/> .
+
+# === Valid data: people and projects in the Semantic Web community ===
+
+data:timbl a foaf:Person ;
+    foaf:name "Tim Berners-Lee" ;
+    foaf:mbox "mailto:timbl@w3.org" ;
+    foaf:nick "timbl" ;
+    foaf:knows data:manusporny ;
+    foaf:currentProject data:solid ;
+    prov:wasDerivedFrom <http://example.com/sources/w3c-team-page.html> .
+
+data:manusporny a foaf:Person ;
+    foaf:name "Manu Sporny" ;
+    foaf:mbox "mailto:msporny@digitalbazaar.com" ;
+    foaf:knows data:timbl ;
+    foaf:currentProject data:verifiable-credentials ;
+    prov:wasDerivedFrom <http://example.com/sources/credentials-cg.html> .
+
+data:w3c a foaf:Organization ;
+    foaf:name "World Wide Web Consortium" ;
+    foaf:mbox "mailto:contact@w3.org" ;
+    foaf:member data:timbl ;
+    prov:wasDerivedFrom <http://example.com/sources/w3c-team-page.html> .
+
+data:digitalbazaar a foaf:Organization ;
+    foaf:name "Digital Bazaar" ;
+    foaf:member data:manusporny ;
+    prov:wasDerivedFrom <http://example.com/sources/credentials-cg.html> .
+
+data:solid a foaf:Project ;
+    dct:title "Solid" ;
+    dct:description "A decentralized web platform giving users control of their data" ;
+    prov:wasDerivedFrom <http://example.com/sources/w3c-team-page.html> .
+
+data:verifiable-credentials a foaf:Project ;
+    dct:title "Verifiable Credentials" ;
+    dct:description "W3C standard for tamper-evident digital credentials" ;
+    prov:wasDerivedFrom <http://example.com/sources/credentials-cg.html> .
+
+data:rdf-primer a foaf:Document ;
+    dct:title "RDF 1.1 Primer" ;
+    dct:description "Introduction to the core concepts of RDF" ;
+    foaf:maker data:w3c ;
+    prov:wasDerivedFrom <http://example.com/sources/w3c-tr-listing.html> .

@@ -1,0 +1,63 @@
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix schema: <https://schema.org/> .
+@prefix prov:   <http://www.w3.org/ns/prov#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix data:   <http://example.com/data/> .
+
+# === Valid data: tech conferences, articles, and organizations ===
+
+data:kelsey a schema:Person ;
+    schema:name "Kelsey Hightower" ;
+    schema:jobTitle "Developer Advocate" ;
+    schema:worksFor data:google ;
+    prov:wasDerivedFrom <http://example.com/sources/kubecon-schedule.html> .
+
+data:linus a schema:Person ;
+    schema:name "Linus Torvalds" ;
+    schema:email "torvalds@linux-foundation.org" ;
+    schema:worksFor data:linux-foundation ;
+    prov:wasDerivedFrom <http://example.com/sources/oss-summit-page.html> .
+
+data:google a schema:Organization ;
+    schema:name "Google" ;
+    schema:url "https://google.com" ;
+    prov:wasDerivedFrom <http://example.com/sources/kubecon-schedule.html> .
+
+data:cncf a schema:Organization ;
+    schema:name "Cloud Native Computing Foundation" ;
+    schema:url "https://cncf.io" ;
+    prov:wasDerivedFrom <http://example.com/sources/kubecon-schedule.html> .
+
+data:linux-foundation a schema:Organization ;
+    schema:name "The Linux Foundation" ;
+    prov:wasDerivedFrom <http://example.com/sources/oss-summit-page.html> .
+
+data:kubecon-na-2026 a schema:Event ;
+    schema:name "KubeCon + CloudNativeCon North America 2026" ;
+    schema:startDate "2026-10-12"^^xsd:date ;
+    schema:endDate "2026-10-15"^^xsd:date ;
+    schema:organizer data:cncf ;
+    schema:performer data:kelsey ;
+    schema:location data:salt-palace ;
+    schema:description "The flagship conference for Kubernetes and cloud-native technologies" ;
+    prov:wasDerivedFrom <http://example.com/sources/kubecon-schedule.html> .
+
+data:salt-palace a schema:Place ;
+    schema:name "Salt Palace Convention Center" ;
+    schema:address "100 SW Temple, Salt Lake City, UT 84101" ;
+    prov:wasDerivedFrom <http://example.com/sources/kubecon-schedule.html> .
+
+data:k8s-article a schema:Article ;
+    schema:headline "Kubernetes 1.32: What You Need to Know" ;
+    schema:author data:kelsey ;
+    schema:publisher data:cncf ;
+    schema:datePublished "2026-08-15"^^xsd:date ;
+    schema:description "Overview of new features in the latest Kubernetes release" ;
+    prov:wasDerivedFrom <http://example.com/sources/cncf-blog.html> .
+
+data:cncf-survey a schema:Report ;
+    schema:headline "CNCF Annual Survey 2025" ;
+    schema:publisher data:cncf ;
+    schema:datePublished "2026-02-01"^^xsd:date ;
+    schema:description "Survey of cloud-native adoption across 2000+ organizations" ;
+    prov:wasDerivedFrom <http://example.com/sources/cncf-blog.html> .

@@ -1,0 +1,104 @@
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix schema: <https://schema.org/> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix shapes: <http://example.com/schema-org-profile/shapes#> .
+
+# Every Person must have exactly one non-empty name
+shapes:PersonShape a sh:NodeShape ;
+    sh:targetClass schema:Person ;
+    sh:property [
+        sh:path schema:name ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "Person must have exactly one non-empty name." ;
+    ] .
+
+# Every Organization must have exactly one non-empty name
+shapes:OrganizationShape a sh:NodeShape ;
+    sh:targetClass schema:Organization ;
+    sh:property [
+        sh:path schema:name ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "Organization must have exactly one non-empty name." ;
+    ] .
+
+# Every Event must have a name, start date, and at least one organizer
+shapes:EventShape a sh:NodeShape ;
+    sh:targetClass schema:Event ;
+    sh:property [
+        sh:path schema:name ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Event must have a name." ;
+    ] ;
+    sh:property [
+        sh:path schema:startDate ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:date ;
+        sh:message "Event must have a start date (xsd:date)." ;
+    ] ;
+    sh:property [
+        sh:path schema:organizer ;
+        sh:minCount 1 ;
+        sh:class schema:Organization ;
+        sh:message "Event must have at least one organizer (an Organization)." ;
+    ] .
+
+# Every Place must have a name
+shapes:PlaceShape a sh:NodeShape ;
+    sh:targetClass schema:Place ;
+    sh:property [
+        sh:path schema:name ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Place must have a name." ;
+    ] .
+
+# Every Article must have a headline and at least one author
+shapes:ArticleShape a sh:NodeShape ;
+    sh:targetClass schema:Article ;
+    sh:property [
+        sh:path schema:headline ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "Article must have a non-empty headline." ;
+    ] ;
+    sh:property [
+        sh:path schema:author ;
+        sh:minCount 1 ;
+        sh:class schema:Person ;
+        sh:message "Article must have at least one author (a Person)." ;
+    ] ;
+    sh:property [
+        sh:path schema:datePublished ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:date ;
+        sh:message "datePublished must be an xsd:date." ;
+    ] .
+
+# Every Report must have a headline and a publisher
+shapes:ReportShape a sh:NodeShape ;
+    sh:targetClass schema:Report ;
+    sh:property [
+        sh:path schema:headline ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Report must have a headline." ;
+    ] ;
+    sh:property [
+        sh:path schema:publisher ;
+        sh:minCount 1 ;
+        sh:class schema:Organization ;
+        sh:message "Report must have a publisher (an Organization)." ;
+    ] .

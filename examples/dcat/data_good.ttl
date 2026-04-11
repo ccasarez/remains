@@ -1,0 +1,74 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix dcat: <http://www.w3.org/ns/dcat#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix data: <http://example.com/data/> .
+
+# === Valid data: US government open data catalogs and datasets ===
+
+data:census-bureau a foaf:Organization ;
+    foaf:name "U.S. Census Bureau" ;
+    prov:wasDerivedFrom <http://example.com/sources/data-gov-catalog.html> .
+
+data:nyc-tlc a foaf:Organization ;
+    foaf:name "NYC Taxi and Limousine Commission" ;
+    prov:wasDerivedFrom <http://example.com/sources/nyc-opendata.html> .
+
+data:datagov a dcat:Catalog ;
+    dct:title "Data.gov" ;
+    dct:description "The home of the U.S. Government's open data" ;
+    dct:publisher data:census-bureau ;
+    dct:issued "2009-05-21"^^xsd:date ;
+    dcat:dataset data:acs-2024 ;
+    dcat:service data:census-api ;
+    prov:wasDerivedFrom <http://example.com/sources/data-gov-catalog.html> .
+
+data:acs-2024 a dcat:Dataset ;
+    dct:title "American Community Survey 2024 1-Year Estimates" ;
+    dct:description "Demographic, social, economic, and housing data for the US" ;
+    dct:publisher data:census-bureau ;
+    dct:issued "2025-09-15"^^xsd:date ;
+    dct:license "Public Domain" ;
+    dcat:distribution data:acs-2024-csv ;
+    dcat:distribution data:acs-2024-json ;
+    prov:wasDerivedFrom <http://example.com/sources/data-gov-catalog.html> .
+
+data:acs-2024-csv a dcat:Distribution ;
+    dct:title "ACS 2024 CSV Download" ;
+    dcat:mediaType "text/csv" ;
+    dcat:downloadURL "https://data.census.gov/acs2024.csv" ;
+    dcat:byteSize 524288000 ;
+    prov:wasDerivedFrom <http://example.com/sources/data-gov-catalog.html> .
+
+data:acs-2024-json a dcat:Distribution ;
+    dct:title "ACS 2024 via Census API" ;
+    dcat:mediaType "application/json" ;
+    dcat:downloadURL "https://api.census.gov/data/2024/acs/acs1" ;
+    prov:wasDerivedFrom <http://example.com/sources/data-gov-catalog.html> .
+
+data:census-api a dcat:DataService ;
+    dct:title "Census Bureau API" ;
+    dct:description "REST API providing access to Census Bureau datasets" ;
+    dcat:endpointURL "https://api.census.gov/data" ;
+    dcat:servesDataset data:acs-2024 ;
+    prov:wasDerivedFrom <http://example.com/sources/data-gov-catalog.html> .
+
+data:taxi-trips a dcat:Dataset ;
+    dct:title "NYC Yellow Taxi Trip Records" ;
+    dct:description "Trip-level data including pick-up and drop-off times, locations, and fares" ;
+    dct:publisher data:nyc-tlc ;
+    dct:issued "2024-01-10"^^xsd:date ;
+    dct:modified "2026-03-01"^^xsd:date ;
+    dct:license "CC0 1.0 Universal" ;
+    dcat:distribution data:taxi-trips-parquet ;
+    prov:wasDerivedFrom <http://example.com/sources/nyc-opendata.html> .
+
+data:taxi-trips-parquet a dcat:Distribution ;
+    dct:title "Taxi Trips Parquet" ;
+    dcat:mediaType "application/vnd.apache.parquet" ;
+    dcat:downloadURL "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2025-12.parquet" ;
+    dcat:byteSize 167772160 ;
+    dct:modified "2026-03-01"^^xsd:date ;
+    prov:wasDerivedFrom <http://example.com/sources/nyc-opendata.html> .

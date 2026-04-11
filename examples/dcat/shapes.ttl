@@ -1,0 +1,92 @@
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix dcat:   <http://www.w3.org/ns/dcat#> .
+@prefix dct:    <http://purl.org/dc/terms/> .
+@prefix foaf:   <http://xmlns.com/foaf/0.1/> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix shapes: <http://example.com/dcat-profile/shapes#> .
+
+# Every Catalog must have a title and a publisher
+shapes:CatalogShape a sh:NodeShape ;
+    sh:targetClass dcat:Catalog ;
+    sh:property [
+        sh:path dct:title ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Catalog must have exactly one title." ;
+    ] ;
+    sh:property [
+        sh:path dct:publisher ;
+        sh:minCount 1 ;
+        sh:class foaf:Organization ;
+        sh:message "Catalog must have a publisher (an Organization)." ;
+    ] .
+
+# Every Dataset must have a title, description, and publisher
+shapes:DatasetShape a sh:NodeShape ;
+    sh:targetClass dcat:Dataset ;
+    sh:property [
+        sh:path dct:title ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "Dataset must have exactly one non-empty title." ;
+    ] ;
+    sh:property [
+        sh:path dct:description ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Dataset must have a description." ;
+    ] ;
+    sh:property [
+        sh:path dct:publisher ;
+        sh:minCount 1 ;
+        sh:class foaf:Organization ;
+        sh:message "Dataset must have a publisher (an Organization)." ;
+    ] .
+
+# Every Distribution must have a title and media type
+shapes:DistributionShape a sh:NodeShape ;
+    sh:targetClass dcat:Distribution ;
+    sh:property [
+        sh:path dct:title ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Distribution must have a title." ;
+    ] ;
+    sh:property [
+        sh:path dcat:mediaType ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Distribution must specify a media type." ;
+    ] .
+
+# Every DataService must have a title and endpoint URL
+shapes:DataServiceShape a sh:NodeShape ;
+    sh:targetClass dcat:DataService ;
+    sh:property [
+        sh:path dct:title ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "DataService must have exactly one title." ;
+    ] ;
+    sh:property [
+        sh:path dcat:endpointURL ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "DataService must have an endpoint URL." ;
+    ] .
+
+# Every Organization must have exactly one non-empty name
+shapes:OrganizationShape a sh:NodeShape ;
+    sh:targetClass foaf:Organization ;
+    sh:property [
+        sh:path foaf:name ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "Organization must have exactly one non-empty name." ;
+    ] .

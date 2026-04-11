@@ -1,0 +1,182 @@
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcat: <http://www.w3.org/ns/dcat#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+
+# ============================================================
+# DCAT Application Profile
+# Based on DCAT 3 (http://www.w3.org/ns/dcat#) and DCAT-AP
+# with Dublin Core terms and FOAF for agent metadata.
+#
+# Use case: extract dataset metadata from data portal pages,
+# API documentation, and data governance documents.
+#
+# Note: In the full DCAT 3 spec, dcat:Catalog is a subclass of
+# dcat:Dataset. This profile keeps Catalog standalone so that
+# Dataset remains a leaf class (directly instantiable). Properties
+# dcat:mediaType and dcat:downloadURL are modeled as datatype
+# properties with xsd:string range for simpler LLM extraction
+# (in DCAT they are object properties pointing to IRIs).
+# ============================================================
+
+# === Abstract Classes ===
+
+dcat:Resource a owl:Class ;
+    rdfs:label "Resource" ;
+    rdfs:comment "Abstract: a resource in a catalog. Use Dataset, Distribution, or DataService." .
+
+# === Leaf Classes ===
+
+dcat:Catalog a owl:Class ;
+    rdfs:label "Catalog" ;
+    rdfs:comment "A curated collection of datasets and data services." ;
+    skos:example "example: data.gov -- US federal open data portal" ;
+    skos:example "example: European Data Portal" .
+
+dcat:Dataset a owl:Class ;
+    rdfs:subClassOf dcat:Resource ;
+    rdfs:label "Dataset" ;
+    rdfs:comment "A collection of data, published or curated by an agent." ;
+    skos:example "example: US Census Bureau American Community Survey 2024" ;
+    skos:example "example: NYC Yellow Taxi Trip Records" .
+
+dcat:Distribution a owl:Class ;
+    rdfs:subClassOf dcat:Resource ;
+    rdfs:label "Distribution" ;
+    rdfs:comment "A specific available form of a dataset (e.g. CSV file, API endpoint)." ;
+    skos:example "example: ACS 2024 data as CSV download" ;
+    skos:example "example: Taxi trip data as Parquet file" .
+
+dcat:DataService a owl:Class ;
+    rdfs:subClassOf dcat:Resource ;
+    rdfs:label "DataService" ;
+    rdfs:comment "A service that provides access to one or more datasets via an API." ;
+    skos:example "example: Census Bureau API" ;
+    skos:example "example: NYC Open Data SODA API" .
+
+foaf:Organization a owl:Class ;
+    rdfs:label "Organization" ;
+    rdfs:comment "An organization that publishes or maintains data." ;
+    skos:example "example: U.S. Census Bureau" ;
+    skos:example "example: NYC Taxi and Limousine Commission" .
+
+# Disjointness
+[] a owl:AllDisjointClasses ;
+    owl:members ( dcat:Resource dcat:Catalog foaf:Organization ) .
+
+[] a owl:AllDisjointClasses ;
+    owl:members ( dcat:Dataset dcat:Distribution dcat:DataService ) .
+
+# === Object Properties ===
+
+dcat:dataset a owl:ObjectProperty ;
+    rdfs:label "dataset" ;
+    rdfs:domain dcat:Catalog ;
+    rdfs:range dcat:Dataset ;
+    rdfs:comment "A dataset in this catalog." .
+
+dcat:distribution a owl:ObjectProperty ;
+    rdfs:label "distribution" ;
+    rdfs:domain dcat:Dataset ;
+    rdfs:range dcat:Distribution ;
+    rdfs:comment "An available form in which the dataset is distributed." .
+
+dcat:servesDataset a owl:ObjectProperty ;
+    rdfs:label "servesDataset" ;
+    rdfs:domain dcat:DataService ;
+    rdfs:range dcat:Dataset ;
+    rdfs:comment "A dataset served by this data service." .
+
+dcat:service a owl:ObjectProperty ;
+    rdfs:label "service" ;
+    rdfs:domain dcat:Catalog ;
+    rdfs:range dcat:DataService ;
+    rdfs:comment "A data service listed in this catalog." .
+
+dct:publisher a owl:ObjectProperty ;
+    rdfs:label "publisher" ;
+    rdfs:domain [
+        a owl:Class ;
+        owl:unionOf ( dcat:Catalog dcat:Dataset )
+    ] ;
+    rdfs:range foaf:Organization ;
+    rdfs:comment "The organization responsible for publishing the resource." .
+
+# === Data Properties ===
+
+dct:title a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "title" ;
+    rdfs:domain [
+        a owl:Class ;
+        owl:unionOf ( dcat:Catalog dcat:Resource )
+    ] ;
+    rdfs:range xsd:string .
+
+dct:description a owl:DatatypeProperty ;
+    rdfs:label "description" ;
+    rdfs:domain [
+        a owl:Class ;
+        owl:unionOf ( dcat:Catalog dcat:Resource )
+    ] ;
+    rdfs:range xsd:string .
+
+dct:issued a owl:DatatypeProperty ;
+    rdfs:label "issued" ;
+    rdfs:domain [
+        a owl:Class ;
+        owl:unionOf ( dcat:Catalog dcat:Dataset )
+    ] ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date of formal issuance or publication." .
+
+dct:modified a owl:DatatypeProperty ;
+    rdfs:label "modified" ;
+    rdfs:domain [
+        a owl:Class ;
+        owl:unionOf ( dcat:Dataset dcat:Distribution )
+    ] ;
+    rdfs:range xsd:date ;
+    rdfs:comment "Date of last modification." .
+
+dct:license a owl:DatatypeProperty ;
+    rdfs:label "license" ;
+    rdfs:domain [
+        a owl:Class ;
+        owl:unionOf ( dcat:Dataset dcat:Distribution )
+    ] ;
+    rdfs:range xsd:string ;
+    rdfs:comment "License under which the resource is available." .
+
+dcat:mediaType a owl:DatatypeProperty ;
+    rdfs:label "mediaType" ;
+    rdfs:domain dcat:Distribution ;
+    rdfs:range xsd:string ;
+    rdfs:comment "IANA media type (e.g. text/csv, application/json)." .
+
+dcat:downloadURL a owl:DatatypeProperty ;
+    rdfs:label "downloadURL" ;
+    rdfs:domain dcat:Distribution ;
+    rdfs:range xsd:string ;
+    rdfs:comment "URL where the distribution can be directly downloaded." .
+
+dcat:byteSize a owl:DatatypeProperty ;
+    rdfs:label "byteSize" ;
+    rdfs:domain dcat:Distribution ;
+    rdfs:range xsd:nonNegativeInteger ;
+    rdfs:comment "Size of the distribution in bytes." .
+
+dcat:endpointURL a owl:DatatypeProperty ;
+    rdfs:label "endpointURL" ;
+    rdfs:domain dcat:DataService ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The root URL of the data service API." .
+
+foaf:name a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "name" ;
+    rdfs:domain foaf:Organization ;
+    rdfs:range xsd:string .
