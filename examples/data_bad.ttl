@@ -1,0 +1,34 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix ex:   <http://example.com/ontology#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+
+# === Bad data: should trigger violations ===
+
+# BUG 1: Typed as abstract class Agent (should be Person or Organization)
+ex:person-bad a ex:Agent ;
+    ex:name "Bad Entity" ;
+    prov:wasDerivedFrom <http://example.com/docs/test.md> .
+
+# BUG 2: Unknown type not in schema
+ex:widget-x a ex:Widget ;
+    ex:name "Mystery Widget" ;
+    prov:wasDerivedFrom <http://example.com/docs/test.md> .
+
+# BUG 3: Decision missing required description and madeBy (SHACL violation)
+ex:decision-empty a ex:Decision ;
+    ex:date "2026-04-05" ;
+    prov:wasDerivedFrom <http://example.com/docs/test.md> .
+
+# BUG 4: Person with no name (SHACL violation)
+ex:person-noname a ex:Person ;
+    ex:worksAt ex:org-acme ;
+    prov:wasDerivedFrom <http://example.com/docs/test.md> .
+
+ex:org-acme a ex:Organization ;
+    ex:name "Acme Corp" ;
+    prov:wasDerivedFrom <http://example.com/docs/test.md> .
+
+# BUG 5: Meeting with no date (SHACL violation)
+ex:meeting-nodate a ex:Meeting ;
+    ex:name "Mystery Meeting" ;
+    prov:wasDerivedFrom <http://example.com/docs/test.md> .

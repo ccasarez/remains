@@ -1,0 +1,130 @@
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix ex:   <http://example.com/ontology#> .
+
+# === Abstract Grounding Classes (not extraction targets) ===
+
+ex:Agent a owl:Class ;
+    rdfs:label "Agent" ;
+    rdfs:comment "Abstract: an entity that acts. Not used directly." .
+
+ex:Artifact a owl:Class ;
+    rdfs:label "Artifact" ;
+    rdfs:comment "Abstract: a thing produced or referenced. Not used directly." .
+
+ex:Activity a owl:Class ;
+    rdfs:label "Activity" ;
+    rdfs:comment "Abstract: something that happens. Not used directly." .
+
+[] a owl:AllDisjointClasses ;
+    owl:members ( ex:Agent ex:Artifact ex:Activity ) .
+
+# === Leaf Classes (extraction targets) ===
+
+ex:Person a owl:Class ;
+    rdfs:subClassOf ex:Agent ;
+    rdfs:label "Person" ;
+    rdfs:comment "A Person is an Agent representing a named individual." ;
+    skos:example "example: John Smith, software engineer at Acme Corp" ;
+    skos:example "example: Jane Doe, VP of Engineering" .
+
+ex:Organization a owl:Class ;
+    rdfs:subClassOf ex:Agent ;
+    rdfs:label "Organization" ;
+    rdfs:comment "An Organization is an Agent representing a company, team, or institution." ;
+    skos:example "example: Acme Corp" ;
+    skos:example "example: Engineering Team" .
+
+ex:Document a owl:Class ;
+    rdfs:subClassOf ex:Artifact ;
+    rdfs:label "Document" ;
+    rdfs:comment "A Document is an Artifact representing a written work (report, memo, spec)." ;
+    skos:example "example: Q3 Architecture Review document" .
+
+ex:Decision a owl:Class ;
+    rdfs:subClassOf ex:Artifact ;
+    rdfs:label "Decision" ;
+    rdfs:comment "A Decision is an Artifact representing a formal choice with rationale." ;
+    skos:example "example: Approved migration to Kubernetes" .
+
+ex:Meeting a owl:Class ;
+    rdfs:subClassOf ex:Activity ;
+    rdfs:label "Meeting" ;
+    rdfs:comment "A Meeting is an Activity where agents convene to discuss topics." ;
+    skos:example "example: Weekly standup on 2026-04-01" .
+
+# Sibling disjointness within axes
+[] a owl:AllDisjointClasses ;
+    owl:members ( ex:Person ex:Organization ) .
+
+[] a owl:AllDisjointClasses ;
+    owl:members ( ex:Document ex:Decision ) .
+
+# === Object Properties ===
+
+ex:worksAt a owl:ObjectProperty ;
+    rdfs:label "worksAt" ;
+    rdfs:domain ex:Person ;
+    rdfs:range ex:Organization ;
+    rdfs:comment "A Person works at an Organization." .
+
+ex:madeBy a owl:ObjectProperty ;
+    rdfs:label "madeBy" ;
+    rdfs:domain ex:Decision ;
+    rdfs:range ex:Person ;
+    rdfs:comment "A Decision was made by a Person." .
+
+ex:attendedBy a owl:ObjectProperty ;
+    rdfs:label "attendedBy" ;
+    rdfs:domain ex:Meeting ;
+    rdfs:range ex:Person ;
+    rdfs:comment "A Meeting was attended by a Person." .
+
+ex:producedAt a owl:ObjectProperty ;
+    rdfs:label "producedAt" ;
+    rdfs:domain ex:Decision ;
+    rdfs:range ex:Meeting ;
+    rdfs:comment "A Decision was produced at a Meeting." .
+
+ex:authored a owl:ObjectProperty ;
+    rdfs:label "authored" ;
+    rdfs:domain ex:Person ;
+    rdfs:range ex:Document ;
+    rdfs:comment "A Person authored a Document." .
+
+# === Data Properties ===
+
+ex:name a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "name" ;
+    rdfs:domain [
+        a owl:Class ;
+        owl:unionOf ( ex:Person ex:Organization ex:Meeting )
+    ] ;
+    rdfs:range xsd:string .
+
+ex:date a owl:DatatypeProperty ;
+    rdfs:label "date" ;
+    rdfs:domain [
+        a owl:Class ;
+        owl:unionOf ( ex:Meeting ex:Decision )
+    ] ;
+    rdfs:range xsd:string .
+
+ex:description a owl:DatatypeProperty ;
+    rdfs:label "description" ;
+    rdfs:domain ex:Decision ;
+    rdfs:range xsd:string .
+
+ex:rationale a owl:DatatypeProperty ;
+    rdfs:label "rationale" ;
+    rdfs:domain ex:Decision ;
+    rdfs:range xsd:string .
+
+ex:title a owl:DatatypeProperty ;
+    rdfs:label "title" ;
+    rdfs:domain ex:Document ;
+    rdfs:range xsd:string .

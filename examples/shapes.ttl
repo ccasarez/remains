@@ -1,0 +1,68 @@
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix ex:   <http://example.com/ontology#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# Every Person must have exactly one name
+ex:PersonShape a sh:NodeShape ;
+    sh:targetClass ex:Person ;
+    sh:property [
+        sh:path ex:name ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "Person must have exactly one non-empty name." ;
+    ] .
+
+# Every Organization must have a name
+ex:OrganizationShape a sh:NodeShape ;
+    sh:targetClass ex:Organization ;
+    sh:property [
+        sh:path ex:name ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Organization must have exactly one name." ;
+    ] .
+
+# Every Decision must have a description and madeBy
+ex:DecisionShape a sh:NodeShape ;
+    sh:targetClass ex:Decision ;
+    sh:property [
+        sh:path ex:description ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Decision must have a description." ;
+    ] ;
+    sh:property [
+        sh:path ex:madeBy ;
+        sh:minCount 1 ;
+        sh:class ex:Person ;
+        sh:message "Decision must have at least one madeBy referencing a Person." ;
+    ] .
+
+# Every Meeting must have a name and date
+ex:MeetingShape a sh:NodeShape ;
+    sh:targetClass ex:Meeting ;
+    sh:property [
+        sh:path ex:name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Meeting must have a name." ;
+    ] ;
+    sh:property [
+        sh:path ex:date ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Meeting must have a date." ;
+    ] .
+
+# Document must have title
+ex:DocumentShape a sh:NodeShape ;
+    sh:targetClass ex:Document ;
+    sh:property [
+        sh:path ex:title ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Document must have a title." ;
+    ] .

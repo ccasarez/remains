@@ -1,0 +1,33 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix ex:   <http://example.com/ontology#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+
+# === Good data: should pass ===
+
+ex:person-john a ex:Person ;
+    ex:name "John Smith" ;
+    ex:worksAt ex:org-acme ;
+    prov:wasDerivedFrom <http://example.com/docs/standup-2026-04-01.md> .
+
+ex:org-acme a ex:Organization ;
+    ex:name "Acme Corp" ;
+    prov:wasDerivedFrom <http://example.com/docs/standup-2026-04-01.md> .
+
+ex:meeting-standup-apr1 a ex:Meeting ;
+    ex:name "Weekly Standup" ;
+    ex:date "2026-04-01" ;
+    ex:attendedBy ex:person-john ;
+    prov:wasDerivedFrom <http://example.com/docs/standup-2026-04-01.md> .
+
+ex:decision-k8s a ex:Decision ;
+    ex:description "Approved migration to Kubernetes for production workloads" ;
+    ex:rationale "Better scaling, team familiarity, cost reduction vs current VMs" ;
+    ex:date "2026-04-01" ;
+    ex:madeBy ex:person-john ;
+    ex:producedAt ex:meeting-standup-apr1 ;
+    prov:wasDerivedFrom <http://example.com/docs/standup-2026-04-01.md> .
+
+ex:doc-arch-review a ex:Document ;
+    ex:title "Q3 Architecture Review" ;
+    ex:authored ex:person-john ;
+    prov:wasDerivedFrom <http://example.com/docs/standup-2026-04-01.md> .

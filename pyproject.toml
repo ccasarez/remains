@@ -1,0 +1,26 @@
+[project]
+name = "dregs"
+version = "0.1.0"
+description = "SQLite-backed RDF triple store with SPARQL, OWL reasoning, and SHACL validation. CLI-first for LLM agents."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "rdflib>=7.0.0",
+    "owlrl>=6.0.2",
+    "pyshacl>=0.26.0",
+    "click>=8.0.0",
+]
+
+[project.scripts]
+dregs = "dregs.cli:cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dregs"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
