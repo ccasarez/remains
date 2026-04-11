@@ -244,8 +244,8 @@ The core test suites (`test_examples.py`, `test_turso.py`) cover validation, SPA
 Remote Turso tests (`test_turso_remote.py`) require a running Turso database:
 
 ```bash
-export DREGS_TURSO_URL="libsql://your-db.turso.io"
-export DREGS_TURSO_TOKEN="your-token"
+export DREGS_TEST_DSN="libsql://your-db.turso.io"
+export DREGS_TEST_AUTH_TOKEN="your-token"
 pytest tests/test_turso_remote.py
 ```
 
