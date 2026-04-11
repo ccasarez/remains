@@ -4,12 +4,11 @@
 @prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix data: <http://example.com/data/> .
 
-# === Invalid data: demonstrates various SHACL validation failures ===
+# === Invalid data: demonstrates SHACL and schema violations ===
 
-# BUG 1: Person with two names (SHACL maxCount violation)
-data:two-names a foaf:Person ;
-    foaf:name "Alice" ;
-    foaf:name "Bob" ;
+# BUG 1: Typed as abstract foaf:Agent (should be Person or Organization)
+data:mystery-agent a foaf:Agent ;
+    foaf:name "Some Agent" ;
     prov:wasDerivedFrom <http://example.com/sources/test.html> .
 
 # BUG 2: Person with empty name (SHACL minLength violation)
@@ -27,6 +26,7 @@ data:orphan-doc a foaf:Document ;
     dct:title "Orphan Document" ;
     prov:wasDerivedFrom <http://example.com/sources/test.html> .
 
-# BUG 5: Organization with no name (SHACL minCount violation)
-data:nameless-org a foaf:Organization ;
+# BUG 5: Unknown type not in schema
+data:gadget-x a foaf:Gadget ;
+    foaf:name "Mystery Gadget" ;
     prov:wasDerivedFrom <http://example.com/sources/test.html> .

@@ -23,7 +23,6 @@ _WELL_KNOWN_NS = [
     "http://www.w3.org/ns/shacl#",
     "http://www.w3.org/ns/prov#",
     "http://www.w3.org/2004/02/skos/core#",
-    "http://xmlns.com/foaf/0.1/",
 ]
 
 _INIT_SQL = """
