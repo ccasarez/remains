@@ -159,7 +159,7 @@ class DregsStore:
         resolved = dsn if dsn is not None else os.environ.get("DREGS_DSN")
         if resolved is None:
             raise ValueError("No DSN. Pass a path/URL or set DREGS_DSN.")
-        self._dsn = str(resolved)
+        self._dsn = str(resolved).strip()
         # Backward compat: expose db_path for local file DSNs
         if self._dsn.startswith(("libsql://", "https://", "http://")):
             self.db_path: Path | None = None
@@ -183,9 +183,9 @@ class DregsStore:
                 )
             self._conn = libsql.connect(
                 database=dsn,
-                auth_token=os.environ.get("DREGS_AUTH_TOKEN", ""),
+                auth_token=os.environ.get("DREGS_AUTH_TOKEN", "").strip(),
             )
-        elif os.environ.get("DREGS_SYNC_URL"):
+        elif os.environ.get("DREGS_SYNC_URL", "").strip():
             try:
                 import libsql
             except ImportError:
@@ -195,8 +195,8 @@ class DregsStore:
                 )
             self._conn = libsql.connect(
                 database=dsn,
-                sync_url=os.environ["DREGS_SYNC_URL"],
-                auth_token=os.environ.get("DREGS_AUTH_TOKEN", ""),
+                sync_url=os.environ["DREGS_SYNC_URL"].strip(),
+                auth_token=os.environ.get("DREGS_AUTH_TOKEN", "").strip(),
             )
             self._conn.sync()
         else:
