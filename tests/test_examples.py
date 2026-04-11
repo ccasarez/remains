@@ -312,6 +312,86 @@ class TestWellKnownNamespaceFix:
             )
 
 
+# ── Schema-subject URI collision (issue #4) ───────────────────────────
+
+class TestSchemaSubjectCollision:
+    """Regression test for GitHub issue #4.
+
+    Data instances whose URI also appears as a subject in the schema graph
+    must still be checked by schema conformance.  Before the fix, the set
+    subtraction `set(combined) - set(schema_subjects)` silently excluded them.
+    """
+
+    def test_instance_with_schema_uri_is_checked(self):
+        """An entity whose URI appears as a subject in the schema (e.g. in
+        an example or annotation) but is NOT a class/property definition
+        must still be checked."""
+        from rdflib import Graph, URIRef, Namespace, OWL, RDF, RDFS, Literal
+        from dregs.store import _run_schema_checks
+
+        EX = Namespace("http://example.org/")
+
+        schema = Graph()
+        schema.add((EX.Person, RDF.type, OWL.Class))
+        # EX.alice appears as a subject in the schema (e.g., an example)
+        schema.add((EX.alice, RDFS.comment, Literal("example individual")))
+
+        combined = Graph()
+        # Data also uses EX.alice — before the fix this was silently skipped
+        combined.add((EX.alice, RDF.type, EX.BogusType))
+
+        violations = _run_schema_checks(schema, combined)
+        assert any("UNKNOWN_TYPE" in v and "BogusType" in v for v in violations), (
+            f"Expected UNKNOWN_TYPE for EX.alice typed as EX.BogusType, "
+            f"got: {violations}"
+        )
+
+    def test_instance_sharing_schema_uri_not_silently_skipped(self):
+        """An entity whose URI is also in the schema must still get NO_TYPE
+        if it has no rdf:type at all in the data."""
+        from rdflib import Graph, URIRef, Namespace, OWL, RDF, RDFS
+        from dregs.store import _run_schema_checks
+
+        EX = Namespace("http://example.org/")
+
+        schema = Graph()
+        schema.add((EX.MyClass, RDF.type, OWL.Class))
+        # EX.item appears as a subject in the schema (e.g., an example annotation)
+        schema.add((EX.item, RDFS.comment, URIRef("http://example.org/note")))
+
+        combined = Graph()
+        # Data uses EX.item as a subject but gives it no type
+        combined.add((EX.item, RDFS.label, URIRef("http://example.org/hello")))
+
+        violations = _run_schema_checks(schema, combined)
+        assert any("NO_TYPE" in v and "item" in v for v in violations), (
+            f"Expected NO_TYPE for EX.item, got: {violations}"
+        )
+
+    def test_actual_schema_definition_still_excluded(self):
+        """A subject that IS a schema definition (owl:Class) should still be
+        excluded from instance checks — we don't want false positives on
+        class definitions themselves."""
+        from rdflib import Graph, Namespace, OWL, RDF, RDFS
+        from dregs.store import _run_schema_checks
+
+        EX = Namespace("http://example.org/")
+
+        schema = Graph()
+        schema.add((EX.Person, RDF.type, OWL.Class))
+        schema.add((EX.Animal, RDF.type, OWL.Class))
+        schema.add((EX.Person, RDFS.subClassOf, EX.Animal))
+
+        # combined graph also has the schema triples (they're merged)
+        combined = schema + Graph()
+
+        violations = _run_schema_checks(schema, combined)
+        # No UNKNOWN_TYPE / NO_TYPE for class definitions
+        assert not violations, (
+            f"Schema class definitions should not produce violations, got: {violations}"
+        )
+
+
 # ── Specific violation content checks ───────────────────────────────
 
 class TestViolationMessages:
