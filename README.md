@@ -1,18 +1,14 @@
 # dregs
 
-SQLite-backed RDF triple store with SPARQL, OWL reasoning, and SHACL validation.
+Triples-based knowledge graph CLI for LLM agents.
 
-**Zero system deps. Pure Python. Deploys anywhere.**
+*The messy bits your agents remember.*
 
 ```
 pip install dregs
 ```
 
-## What It Does
-
-Persistent knowledge graph storage for LLM agents. Unstructured data goes through an extraction pipeline, gets validated against OWL ontology + SHACL shapes, and lands in a queryable SQLite store. Agents query via SPARQL.
-
-The ontology and SHACL specs live inside the database. One file carries the schema, the constraints, and the data. Validation runs automatically on every load.
+Persistent knowledge graph storage backed by SQLite. Your agent extracts triples from unstructured text, dregs validates them against an OWL ontology + SHACL shapes, and stores what survives in a queryable graph. One file carries the schema, the constraints, and the data. No Java. No system deps. Pure Python.
 
 ## Quick Start
 
