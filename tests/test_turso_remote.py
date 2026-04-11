@@ -21,8 +21,8 @@ import pytest
 
 EXAMPLES_ROOT = Path(__file__).parent.parent / "examples"
 
-_test_dsn = os.environ.get("DREGS_TEST_DSN", "")
-_test_token = os.environ.get("DREGS_TEST_AUTH_TOKEN", "")
+_test_dsn = os.environ.get("DREGS_TEST_DSN", "").strip()
+_test_token = os.environ.get("DREGS_TEST_AUTH_TOKEN", "").strip()
 
 _has_turso = bool(
     _test_dsn.startswith(("libsql://", "https://", "http://"))
