@@ -471,6 +471,86 @@ class TestAskQuery:
         assert qr.bindings[0]["result"] == "false"
 
 
+# ── SQLite detection (issue #6) ────────────────────────────────────
+
+class TestSqliteDetection:
+    """Verify _is_sqlite detects databases by magic bytes, not extension."""
+
+    def test_detects_real_sqlite_file(self, tmp_path):
+        from dregs.cli import _is_sqlite
+
+        db_path = tmp_path / "test.db"
+        store = DregsStore(db_path)
+        store.init()
+        store.close()
+        assert _is_sqlite(db_path) is True
+
+    def test_detects_sqlite_with_nonstandard_extension(self, tmp_path):
+        from dregs.cli import _is_sqlite
+
+        db_path = tmp_path / "test.dregs"
+        store = DregsStore(db_path)
+        store.init()
+        store.close()
+        assert _is_sqlite(db_path) is True
+
+    def test_detects_sqlite_with_no_extension(self, tmp_path):
+        from dregs.cli import _is_sqlite
+
+        db_path = tmp_path / "knowledge-base"
+        store = DregsStore(db_path)
+        store.init()
+        store.close()
+        assert _is_sqlite(db_path) is True
+
+    def test_rejects_turtle_file(self):
+        from dregs.cli import _is_sqlite
+
+        ttl_path = EXAMPLES_ROOT / "ontology.ttl"
+        assert _is_sqlite(ttl_path) is False
+
+    def test_rejects_nonexistent_file(self, tmp_path):
+        from dregs.cli import _is_sqlite
+
+        assert _is_sqlite(tmp_path / "nope") is False
+
+    def test_rejects_directory(self, tmp_path):
+        from dregs.cli import _is_sqlite
+
+        assert _is_sqlite(tmp_path) is False
+
+    def test_check_works_with_nonstandard_db_extension(self, tmp_path):
+        """End-to-end: `dregs check` routes correctly for .dregs extension."""
+        from click.testing import CliRunner
+        from dregs.cli import cli
+
+        paths = EXAMPLE_SETS["default"]
+        db_path = tmp_path / "my-store.dregs"
+        store = DregsStore(db_path)
+        store.init(schema_path=paths["ontology"], shacl_path=paths["shapes"])
+        store.close()
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["check", str(db_path), str(paths["good_data"])])
+        assert result.exit_code == 0, result.output
+
+    def test_prompt_works_with_nonstandard_db_extension(self, tmp_path):
+        """End-to-end: `dregs prompt` routes correctly for .dregs extension."""
+        from click.testing import CliRunner
+        from dregs.cli import cli
+
+        paths = EXAMPLE_SETS["default"]
+        db_path = tmp_path / "my-store.dregs"
+        store = DregsStore(db_path)
+        store.init(schema_path=paths["ontology"], shacl_path=paths["shapes"])
+        store.close()
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["prompt", str(db_path)])
+        assert result.exit_code == 0, result.output
+        assert "Entity Types" in result.output
+
+
 # ── Helpers ──────────────────────────────────────────────────────────
 
 
