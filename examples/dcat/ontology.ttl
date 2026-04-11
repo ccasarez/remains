@@ -16,12 +16,17 @@
 # Use case: extract dataset metadata from data portal pages,
 # API documentation, and data governance documents.
 #
-# Note: In the full DCAT 3 spec, dcat:Catalog is a subclass of
-# dcat:Dataset. This profile keeps Catalog standalone so that
-# Dataset remains a leaf class (directly instantiable). Properties
-# dcat:mediaType and dcat:downloadURL are modeled as datatype
-# properties with xsd:string range for simpler LLM extraction
-# (in DCAT they are object properties pointing to IRIs).
+# Profile deviations from DCAT 3 / Dublin Core Terms:
+# - dcat:Catalog kept standalone (spec: subclass of dcat:Dataset)
+#   so that Dataset remains a leaf class (directly instantiable)
+# - dcat:mediaType and dcat:downloadURL modeled as DatatypeProperty
+#   with xsd:string (spec: ObjectProperty pointing to IRIs)
+# - dct:license modeled as DatatypeProperty with xsd:string
+#   (spec: ObjectProperty pointing to dct:LicenseDocument)
+# - dct:title declared FunctionalProperty (not in Dublin Core spec,
+#   added to enforce single titles per resource)
+# - dct:publisher range narrowed to foaf:Organization
+#   (spec: foaf:Agent)
 # ============================================================
 
 # === Abstract Classes ===

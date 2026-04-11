@@ -12,6 +12,14 @@
 #
 # Use case: extract structured event, article, and organization
 # data from web pages, press releases, and news articles.
+#
+# Profile deviations from Schema.org:
+# - schema:author range narrowed to Person (spec: Person or Organization)
+# - schema:organizer range narrowed to Organization (spec: Organization or Person)
+# - schema:performer range narrowed to Person (spec: Person or PerformingGroup)
+# - schema:location range narrowed to Place (spec: Place, Text, VirtualLocation)
+# - schema:address modeled as DatatypeProperty (spec: Text or PostalAddress)
+# - schema:url modeled as DatatypeProperty (spec: URL type)
 # ============================================================
 
 # === Abstract Classes ===
@@ -115,8 +123,8 @@ schema:worksFor a owl:ObjectProperty ;
 schema:about a owl:ObjectProperty ;
     rdfs:label "about" ;
     rdfs:domain schema:CreativeWork ;
-    rdfs:range schema:Event ;
-    rdfs:comment "The event that a creative work is about." .
+    rdfs:range schema:Thing ;
+    rdfs:comment "The subject of the creative work." .
 
 # === Data Properties ===
 

@@ -39,7 +39,7 @@ data:acs-2024-csv a dcat:Distribution ;
     dct:title "ACS 2024 CSV Download" ;
     dcat:mediaType "text/csv" ;
     dcat:downloadURL "https://data.census.gov/acs2024.csv" ;
-    dcat:byteSize 524288000 ;
+    dcat:byteSize "524288000"^^xsd:nonNegativeInteger ;
     prov:wasDerivedFrom <http://example.com/sources/data-gov-catalog.html> .
 
 data:acs-2024-json a dcat:Distribution ;
@@ -69,6 +69,6 @@ data:taxi-trips-parquet a dcat:Distribution ;
     dct:title "Taxi Trips Parquet" ;
     dcat:mediaType "application/vnd.apache.parquet" ;
     dcat:downloadURL "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2025-12.parquet" ;
-    dcat:byteSize 167772160 ;
+    dcat:byteSize "167772160"^^xsd:nonNegativeInteger ;
     dct:modified "2026-03-01"^^xsd:date ;
     prov:wasDerivedFrom <http://example.com/sources/nyc-opendata.html> .

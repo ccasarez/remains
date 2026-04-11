@@ -14,6 +14,14 @@
 #
 # Use case: extract people, organizations, projects, and their
 # relationships from emails, bios, team pages, and articles.
+#
+# Profile deviations from FOAF 0.99:
+# - foaf:mbox modeled as DatatypeProperty (spec: ObjectProperty +
+#   InverseFunctionalProperty taking mailto: URIs)
+# - foaf:member domain broadened to foaf:Agent (spec: foaf:Group)
+#   because this profile omits foaf:Group
+# - foaf:maker range narrowed to foaf:Agent (spec: owl:Thing)
+# - foaf:currentProject has "testing" status in the FOAF spec
 # ============================================================
 
 # === Abstract Classes ===
