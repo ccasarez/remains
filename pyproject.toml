@@ -22,5 +22,8 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/dregs"]
 
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
