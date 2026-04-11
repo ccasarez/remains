@@ -185,6 +185,7 @@ Three layers, run on every `dregs load`:
 - `owlrl>=6.0.2` -- OWL 2 RL reasoning (pure Python)
 - `pyshacl>=0.26.0` -- SHACL validation
 - `click>=8.0.0` -- CLI
+- `libsql>=0.1.0` -- Turso/libSQL support
 
 No Java. No system packages. Works in any Python 3.10+ environment.
 
@@ -227,6 +228,25 @@ Application profile based on [DCAT 3](http://www.w3.org/ns/dcat#) and DCAT-AP. E
 dregs init dcat.db --schema examples/dcat/ontology.ttl --shacl examples/dcat/shapes.ttl
 dregs load dcat.db examples/dcat/data_good.ttl --graph test
 dregs check dcat.db examples/dcat/data_bad.ttl
+```
+
+## Testing
+
+Install with test dependencies and run:
+
+```bash
+pip install -e ".[test]"
+pytest
+```
+
+The core test suites (`test_examples.py`, `test_turso.py`) cover validation, SPARQL queries, store lifecycle, and local Turso-compatible storage. They require no external services.
+
+Remote Turso tests (`test_turso_remote.py`) require a running Turso database:
+
+```bash
+export DREGS_TEST_DSN="libsql://your-db.turso.io"
+export DREGS_TEST_AUTH_TOKEN="your-token"
+pytest tests/test_turso_remote.py
 ```
 
 ## License

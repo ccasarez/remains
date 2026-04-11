@@ -174,25 +174,13 @@ class DregsStore:
         dsn = self._dsn
 
         if dsn.startswith(("libsql://", "https://", "http://")):
-            try:
-                import libsql
-            except ImportError:
-                raise ImportError(
-                    "Remote Turso databases require the libsql package. "
-                    "Install with: pip install dregs[turso]"
-                )
+            import libsql
             self._conn = libsql.connect(
                 database=dsn,
                 auth_token=os.environ.get("DREGS_AUTH_TOKEN", "").strip(),
             )
         elif os.environ.get("DREGS_SYNC_URL", "").strip():
-            try:
-                import libsql
-            except ImportError:
-                raise ImportError(
-                    "Embedded replica mode requires the libsql package. "
-                    "Install with: pip install dregs[turso]"
-                )
+            import libsql
             self._conn = libsql.connect(
                 database=dsn,
                 sync_url=os.environ["DREGS_SYNC_URL"].strip(),
