@@ -229,6 +229,26 @@ dregs load dcat.db examples/dcat/data_good.ttl --graph test
 dregs check dcat.db examples/dcat/data_bad.ttl
 ```
 
+## Testing
+
+Install with test dependencies and run:
+
+```bash
+pip install -e ".[test]"
+pytest
+```
+
+The core test suites (`test_examples.py`, `test_turso.py`) cover validation, SPARQL queries, store lifecycle, and local Turso-compatible storage. They require no external services.
+
+Remote Turso tests (`test_turso_remote.py`) require the `turso` extra and a running Turso database:
+
+```bash
+pip install -e ".[test,turso]"
+export DREGS_TURSO_URL="libsql://your-db.turso.io"
+export DREGS_TURSO_TOKEN="your-token"
+pytest tests/test_turso_remote.py
+```
+
 ## License
 
 MIT
