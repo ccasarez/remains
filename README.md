@@ -185,6 +185,7 @@ Three layers, run on every `dregs load`:
 - `owlrl>=6.0.2` -- OWL 2 RL reasoning (pure Python)
 - `pyshacl>=0.26.0` -- SHACL validation
 - `click>=8.0.0` -- CLI
+- `libsql>=0.1.0` -- Turso/libSQL support
 
 No Java. No system packages. Works in any Python 3.10+ environment.
 
@@ -240,10 +241,9 @@ pytest
 
 The core test suites (`test_examples.py`, `test_turso.py`) cover validation, SPARQL queries, store lifecycle, and local Turso-compatible storage. They require no external services.
 
-Remote Turso tests (`test_turso_remote.py`) require the `turso` extra and a running Turso database:
+Remote Turso tests (`test_turso_remote.py`) require a running Turso database:
 
 ```bash
-pip install -e ".[test,turso]"
 export DREGS_TURSO_URL="libsql://your-db.turso.io"
 export DREGS_TURSO_TOKEN="your-token"
 pytest tests/test_turso_remote.py
