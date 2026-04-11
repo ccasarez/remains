@@ -32,8 +32,8 @@ CREATE TABLE IF NOT EXISTS triples (
     predicate TEXT NOT NULL,
     object TEXT NOT NULL,
     object_type TEXT NOT NULL,
-    datatype TEXT,
-    lang TEXT,
+    datatype TEXT NOT NULL DEFAULT '',
+    lang TEXT NOT NULL DEFAULT '',
     graph TEXT NOT NULL
 );
 
@@ -42,7 +42,7 @@ CREATE INDEX IF NOT EXISTS idx_po ON triples(predicate, object);
 CREATE INDEX IF NOT EXISTS idx_os ON triples(object, predicate);
 CREATE INDEX IF NOT EXISTS idx_graph ON triples(graph);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_triple
-    ON triples(subject, predicate, object, object_type, graph);
+    ON triples(subject, predicate, object, object_type, datatype, lang, graph);
 
 CREATE TABLE IF NOT EXISTS graphs (
     uri TEXT PRIMARY KEY,
@@ -88,7 +88,11 @@ def _is_well_known(uri: URIRef) -> bool:
 
 
 def _rdflib_triple_to_row(s: Node, p: Node, o: Node, graph: str) -> Optional[tuple]:
-    """Convert rdflib triple to SQLite row. Skip blank nodes."""
+    """Convert rdflib triple to SQLite row.
+
+    BNode subjects are stored as ``_:{id}`` strings.
+    Returns None for unsupported node types (non-URI predicates, etc.).
+    """
     # Subject
     if isinstance(s, BNode):
         subj = f"_:{s}"
@@ -103,18 +107,18 @@ def _rdflib_triple_to_row(s: Node, p: Node, o: Node, graph: str) -> Optional[tup
     else:
         return None
 
-    # Object
+    # Object — datatype/lang use "" (not None) so the UNIQUE index works
     if isinstance(o, URIRef):
-        return (subj, pred, str(o), "uri", None, None, graph)
+        return (subj, pred, str(o), "uri", "", "", graph)
     elif isinstance(o, BNode):
-        return (subj, pred, f"_:{o}", "uri", None, None, graph)
+        return (subj, pred, f"_:{o}", "bnode", "", "", graph)
     elif isinstance(o, Literal):
         if o.language:
-            return (subj, pred, str(o), "lang_literal", None, o.language, graph)
+            return (subj, pred, str(o), "lang_literal", "", o.language, graph)
         elif o.datatype:
-            return (subj, pred, str(o), "typed_literal", str(o.datatype), None, graph)
+            return (subj, pred, str(o), "typed_literal", str(o.datatype), "", graph)
         else:
-            return (subj, pred, str(o), "literal", None, None, graph)
+            return (subj, pred, str(o), "literal", "", "", graph)
     return None
 
 
@@ -133,14 +137,13 @@ def _rows_to_rdflib_graph(rows: list[tuple]) -> Graph:
         pred = URIRef(pred_str)
 
         if obj_type == "uri":
-            if obj_str.startswith("_:"):
-                obj = BNode(obj_str[2:])
-            else:
-                obj = URIRef(obj_str)
+            obj = URIRef(obj_str)
+        elif obj_type == "bnode":
+            obj = BNode(obj_str[2:] if obj_str.startswith("_:") else obj_str)
         elif obj_type == "lang_literal":
-            obj = Literal(obj_str, lang=lang)
+            obj = Literal(obj_str, lang=lang or None)
         elif obj_type == "typed_literal":
-            obj = Literal(obj_str, datatype=URIRef(datatype))
+            obj = Literal(obj_str, datatype=URIRef(datatype)) if datatype else Literal(obj_str)
         else:
             obj = Literal(obj_str)
 
@@ -245,14 +248,19 @@ class DregsStore:
             rows,
         )
 
+        # Count actual triples stored (INSERT OR IGNORE may skip duplicates)
+        actual = conn.execute(
+            "SELECT COUNT(*) FROM triples WHERE graph = ?", (graph_uri,)
+        ).fetchone()[0]
+
         conn.execute(
             """INSERT OR REPLACE INTO graphs
                (uri, label, graph_type, source_file, created_at, triple_count)
                VALUES (?, ?, ?, ?, ?, ?)""",
-            (graph_uri, label or source_file or graph_uri, graph_type, source_file, now, len(rows)),
+            (graph_uri, label or source_file or graph_uri, graph_type, source_file, now, actual),
         )
 
-        return len(rows)
+        return actual
 
     def load(
         self,

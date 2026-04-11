@@ -337,6 +337,140 @@ class TestViolationMessages:
             )
 
 
+# ── Unique index correctness ────────────────────────────────────────
+
+class TestUniqueIndex:
+    """Regression tests for the unique index on triples.
+
+    The original index omitted datatype and lang columns, causing
+    INSERT OR IGNORE to silently discard distinct triples that
+    differed only in datatype or language tag.
+    """
+
+    def test_distinct_datatypes_preserved(self, tmp_path):
+        """Two literals with same lexical form but different datatypes must both survive."""
+        from rdflib import Graph, Literal, URIRef, Namespace, XSD
+
+        db = DregsStore(tmp_path / "dt.db")
+        db.init()
+        conn = db._connect()
+
+        g = Graph()
+        EX = Namespace("http://example.com/")
+        g.add((EX.item, EX.value, Literal("5", datatype=XSD.integer)))
+        g.add((EX.item, EX.value, Literal("5", datatype=XSD.decimal)))
+
+        count = db._insert_graph(conn, g, "test", "data")
+        conn.commit()
+
+        rows = conn.execute(
+            "SELECT datatype FROM triples WHERE subject = ? AND predicate = ?",
+            (str(EX.item), str(EX.value)),
+        ).fetchall()
+        db.close()
+
+        datatypes = {r[0] for r in rows}
+        assert str(XSD.integer) in datatypes, f"xsd:integer lost, got: {datatypes}"
+        assert str(XSD.decimal) in datatypes, f"xsd:decimal lost, got: {datatypes}"
+        assert count == 2
+
+    def test_distinct_language_tags_preserved(self, tmp_path):
+        """Two lang-tagged literals with different tags must both survive."""
+        from rdflib import Graph, Literal, URIRef, Namespace
+
+        db = DregsStore(tmp_path / "lang.db")
+        db.init()
+        conn = db._connect()
+
+        g = Graph()
+        EX = Namespace("http://example.com/")
+        g.add((EX.item, EX.label, Literal("hello", lang="en")))
+        g.add((EX.item, EX.label, Literal("hello", lang="fr")))
+
+        count = db._insert_graph(conn, g, "test", "data")
+        conn.commit()
+
+        rows = conn.execute(
+            "SELECT lang FROM triples WHERE subject = ? AND predicate = ?",
+            (str(EX.item), str(EX.label)),
+        ).fetchall()
+        db.close()
+
+        langs = {r[0] for r in rows}
+        assert "en" in langs, f"en lost, got: {langs}"
+        assert "fr" in langs, f"fr lost, got: {langs}"
+        assert count == 2
+
+    def test_triple_count_matches_actual(self, tmp_path):
+        """Reported triple count must match actual rows in database."""
+        from rdflib import Graph, Literal, URIRef, Namespace
+
+        db = DregsStore(tmp_path / "count.db")
+        db.init()
+        conn = db._connect()
+
+        g = Graph()
+        EX = Namespace("http://example.com/")
+        # Add the same triple twice — rdflib deduplicates, but test the path
+        g.add((EX.a, EX.b, Literal("x")))
+        g.add((EX.a, EX.b, Literal("y")))
+
+        count = db._insert_graph(conn, g, "test", "data")
+        conn.commit()
+
+        actual = conn.execute(
+            "SELECT COUNT(*) FROM triples WHERE graph = 'test'"
+        ).fetchone()[0]
+        db.close()
+
+        assert count == actual, f"reported {count}, actual {actual}"
+
+    def test_bnode_object_type_is_bnode(self, tmp_path):
+        """BNode objects must be stored with object_type='bnode', not 'uri'."""
+        from rdflib import Graph, URIRef, BNode, Namespace
+
+        db = DregsStore(tmp_path / "bnode.db")
+        db.init()
+        conn = db._connect()
+
+        g = Graph()
+        EX = Namespace("http://example.com/")
+        bn = BNode()
+        g.add((EX.item, EX.rel, bn))
+
+        db._insert_graph(conn, g, "test", "data")
+        conn.commit()
+
+        row = conn.execute(
+            "SELECT object_type FROM triples WHERE subject = ? AND predicate = ?",
+            (str(EX.item), str(EX.rel)),
+        ).fetchone()
+        db.close()
+
+        assert row[0] == "bnode", f"expected 'bnode', got '{row[0]}'"
+
+
+# ── ASK query support ──────────────────────────────────────────────
+
+class TestAskQuery:
+    """Regression test for ASK queries, which previously crashed."""
+
+    def test_ask_returns_boolean(self, loaded_store):
+        qr = execute_sparql(
+            loaded_store,
+            "ASK WHERE { ?s ?p ?o }",
+        )
+        assert len(qr.bindings) == 1
+        assert qr.bindings[0]["result"] == "true"
+
+    def test_ask_false(self, loaded_store):
+        qr = execute_sparql(
+            loaded_store,
+            "ASK WHERE { <http://nonexistent.example/x> ?p ?o }",
+        )
+        assert qr.bindings[0]["result"] == "false"
+
+
 # ── Helpers ──────────────────────────────────────────────────────────
 
 

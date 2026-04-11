@@ -31,21 +31,23 @@ def execute_sparql(
     for prefix, ns in prefixes.items():
         g.bind(prefix, Namespace(ns))
 
-    # Detect query type
+    # Detect query type from first non-comment, non-PREFIX line
     sparql_upper = sparql.strip().upper()
-    is_construct = False
+    query_type = "select"
     for line in sparql_upper.split("\n"):
         stripped = line.strip()
         if stripped.startswith("#") or stripped.startswith("PREFIX"):
             continue
         if stripped.startswith("CONSTRUCT") or stripped.startswith("DESCRIBE"):
-            is_construct = True
+            query_type = "construct"
+        elif stripped.startswith("ASK"):
+            query_type = "ask"
         break
 
     result = g.query(sparql)
 
-    if is_construct:
-        # CONSTRUCT returns a graph
+    if query_type == "construct":
+        # CONSTRUCT/DESCRIBE returns a graph
         out_graph = Graph()
         for prefix, ns in prefixes.items():
             out_graph.bind(prefix, Namespace(ns))
@@ -53,6 +55,12 @@ def execute_sparql(
             out_graph.add(t)
         return QueryResult(
             graph_serialization=out_graph.serialize(format="turtle")
+        )
+    elif query_type == "ask":
+        # ASK returns a boolean
+        return QueryResult(
+            variables=["result"],
+            bindings=[{"result": str(bool(result)).lower()}],
         )
     else:
         # SELECT returns bindings

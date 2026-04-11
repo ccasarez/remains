@@ -125,9 +125,15 @@ def check(
         try:
             conn = store._connect()
             schema_graph = store._load_graphs_by_type(conn, "schema")
-            shacl_graph = store._load_graphs_by_type(conn, "shacl")
 
+            # --shacl flag overrides DB shapes; fall back to DB shapes
             from rdflib import Graph
+            if shacl:
+                shacl_graph = Graph()
+                shacl_graph.parse(str(shacl), format="turtle")
+            else:
+                shacl_graph = store._load_graphs_by_type(conn, "shacl")
+
             data_graph = Graph()
             data_graph.parse(str(data), format="turtle")
 
