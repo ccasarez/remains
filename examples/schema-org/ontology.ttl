@@ -1,0 +1,185 @@
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix prov:   <http://www.w3.org/ns/prov#> .
+@prefix schema: <https://schema.org/> .
+
+# ============================================================
+# Schema.org Application Profile
+# Based on Schema.org (https://schema.org/)
+#
+# Use case: extract structured event, article, and organization
+# data from web pages, press releases, and news articles.
+#
+# Profile deviations from Schema.org:
+# - schema:author range narrowed to Person (spec: Person or Organization)
+# - schema:organizer range narrowed to Organization (spec: Organization or Person)
+# - schema:performer range narrowed to Person (spec: Person or PerformingGroup)
+# - schema:location range narrowed to Place (spec: Place, Text, VirtualLocation)
+# - schema:address modeled as DatatypeProperty (spec: Text or PostalAddress)
+# - schema:url modeled as DatatypeProperty (spec: URL type)
+# ============================================================
+
+# === Abstract Classes ===
+
+schema:Thing a owl:Class ;
+    rdfs:label "Thing" ;
+    rdfs:comment "Abstract: the most generic type. Use a specific subclass." .
+
+schema:CreativeWork a owl:Class ;
+    rdfs:subClassOf schema:Thing ;
+    rdfs:label "CreativeWork" ;
+    rdfs:comment "Abstract: a creative work. Use Article or Report." .
+
+# === Leaf Classes ===
+
+schema:Person a owl:Class ;
+    rdfs:subClassOf schema:Thing ;
+    rdfs:label "Person" ;
+    rdfs:comment "A person -- alive, dead, undead, or fictional." ;
+    skos:example "example: Kelsey Hightower, developer advocate at Google" ;
+    skos:example "example: Linus Torvalds, creator of Linux and Git" .
+
+schema:Organization a owl:Class ;
+    rdfs:subClassOf schema:Thing ;
+    rdfs:label "Organization" ;
+    rdfs:comment "A company, non-profit, school, NGO, club, or similar." ;
+    skos:example "example: Google LLC" ;
+    skos:example "example: Cloud Native Computing Foundation (CNCF)" .
+
+schema:Event a owl:Class ;
+    rdfs:subClassOf schema:Thing ;
+    rdfs:label "Event" ;
+    rdfs:comment "A happening: conference, meetup, webinar, or workshop." ;
+    skos:example "example: KubeCon North America 2026" ;
+    skos:example "example: PyCon US 2026" .
+
+schema:Place a owl:Class ;
+    rdfs:subClassOf schema:Thing ;
+    rdfs:label "Place" ;
+    rdfs:comment "A physical or virtual location." ;
+    skos:example "example: Salt Palace Convention Center, Salt Lake City" .
+
+schema:Article a owl:Class ;
+    rdfs:subClassOf schema:CreativeWork ;
+    rdfs:label "Article" ;
+    rdfs:comment "A news article, blog post, or scholarly piece." ;
+    skos:example "example: 'Kubernetes 1.32 Released' -- blog post on kubernetes.io" .
+
+schema:Report a owl:Class ;
+    rdfs:subClassOf schema:CreativeWork ;
+    rdfs:label "Report" ;
+    rdfs:comment "A formal report, whitepaper, or analysis." ;
+    skos:example "example: CNCF Annual Survey 2025" .
+
+# Top-level disjointness (siblings under Thing)
+[] a owl:AllDisjointClasses ;
+    owl:members ( schema:Person schema:Organization schema:Event schema:Place schema:CreativeWork ) .
+
+# Sibling disjointness under CreativeWork
+[] a owl:AllDisjointClasses ;
+    owl:members ( schema:Article schema:Report ) .
+
+# === Object Properties ===
+
+schema:organizer a owl:ObjectProperty ;
+    rdfs:label "organizer" ;
+    rdfs:domain schema:Event ;
+    rdfs:range schema:Organization ;
+    rdfs:comment "The organization responsible for organizing the event." .
+
+schema:location a owl:ObjectProperty ;
+    rdfs:label "location" ;
+    rdfs:domain schema:Event ;
+    rdfs:range schema:Place ;
+    rdfs:comment "The location where the event takes place." .
+
+schema:performer a owl:ObjectProperty ;
+    rdfs:label "performer" ;
+    rdfs:domain schema:Event ;
+    rdfs:range schema:Person ;
+    rdfs:comment "A person performing or presenting at the event." .
+
+schema:author a owl:ObjectProperty ;
+    rdfs:label "author" ;
+    rdfs:domain schema:CreativeWork ;
+    rdfs:range schema:Person ;
+    rdfs:comment "The author of a creative work." .
+
+schema:publisher a owl:ObjectProperty ;
+    rdfs:label "publisher" ;
+    rdfs:domain schema:CreativeWork ;
+    rdfs:range schema:Organization ;
+    rdfs:comment "The publisher of a creative work." .
+
+schema:worksFor a owl:ObjectProperty ;
+    rdfs:label "worksFor" ;
+    rdfs:domain schema:Person ;
+    rdfs:range schema:Organization ;
+    rdfs:comment "The organization a person works for." .
+
+schema:about a owl:ObjectProperty ;
+    rdfs:label "about" ;
+    rdfs:domain schema:CreativeWork ;
+    rdfs:range schema:Thing ;
+    rdfs:comment "The subject of the creative work." .
+
+# === Data Properties ===
+
+schema:name a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "name" ;
+    rdfs:domain schema:Thing ;
+    rdfs:range xsd:string .
+
+schema:description a owl:DatatypeProperty ;
+    rdfs:label "description" ;
+    rdfs:domain schema:Thing ;
+    rdfs:range xsd:string .
+
+schema:startDate a owl:DatatypeProperty ;
+    rdfs:label "startDate" ;
+    rdfs:domain schema:Event ;
+    rdfs:range xsd:date .
+
+schema:endDate a owl:DatatypeProperty ;
+    rdfs:label "endDate" ;
+    rdfs:domain schema:Event ;
+    rdfs:range xsd:date .
+
+schema:datePublished a owl:DatatypeProperty ;
+    rdfs:label "datePublished" ;
+    rdfs:domain schema:CreativeWork ;
+    rdfs:range xsd:date .
+
+schema:headline a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "headline" ;
+    rdfs:domain schema:CreativeWork ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Headline or title of the creative work." .
+
+schema:jobTitle a owl:DatatypeProperty ;
+    rdfs:label "jobTitle" ;
+    rdfs:domain schema:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The person's job title." .
+
+schema:email a owl:DatatypeProperty ;
+    rdfs:label "email" ;
+    rdfs:domain [
+        a owl:Class ;
+        owl:unionOf ( schema:Person schema:Organization )
+    ] ;
+    rdfs:range xsd:string .
+
+schema:url a owl:DatatypeProperty ;
+    rdfs:label "url" ;
+    rdfs:domain schema:Thing ;
+    rdfs:range xsd:string ;
+    rdfs:comment "URL of the resource." .
+
+schema:address a owl:DatatypeProperty ;
+    rdfs:label "address" ;
+    rdfs:domain schema:Place ;
+    rdfs:range xsd:string .

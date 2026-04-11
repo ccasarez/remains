@@ -1,0 +1,44 @@
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix schema: <https://schema.org/> .
+@prefix prov:   <http://www.w3.org/ns/prov#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix data:   <http://example.com/data/> .
+
+# === Invalid data: demonstrates various validation failures ===
+
+# BUG 1: Typed as abstract schema:Thing (should be a leaf class)
+data:mystery-thing a schema:Thing ;
+    schema:name "Something" ;
+    prov:wasDerivedFrom <http://example.com/sources/test.html> .
+
+# BUG 2: Typed as abstract schema:CreativeWork (should be Article or Report)
+data:generic-work a schema:CreativeWork ;
+    schema:headline "Some Work" ;
+    prov:wasDerivedFrom <http://example.com/sources/test.html> .
+
+# BUG 3: Event missing required startDate and organizer (SHACL violations)
+data:vague-event a schema:Event ;
+    schema:name "Mystery Conference" ;
+    schema:description "When is this? Who knows!" ;
+    prov:wasDerivedFrom <http://example.com/sources/test.html> .
+
+# BUG 4: Article missing required headline and author (SHACL violations)
+data:headless-article a schema:Article ;
+    schema:datePublished "2026-01-01"^^xsd:date ;
+    prov:wasDerivedFrom <http://example.com/sources/test.html> .
+
+# BUG 5: Event with wrong date type (string instead of xsd:date)
+data:bad-date-event a schema:Event ;
+    schema:name "Wrongly Dated Conference" ;
+    schema:startDate "next Tuesday" ;
+    schema:organizer data:some-org ;
+    prov:wasDerivedFrom <http://example.com/sources/test.html> .
+
+data:some-org a schema:Organization ;
+    schema:name "Some Org" ;
+    prov:wasDerivedFrom <http://example.com/sources/test.html> .
+
+# BUG 6: Unknown type not in schema
+data:podcast-ep a schema:PodcastEpisode ;
+    schema:name "Episode 42" ;
+    prov:wasDerivedFrom <http://example.com/sources/test.html> .

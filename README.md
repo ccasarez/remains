@@ -190,12 +190,44 @@ No Java. No system packages. Works in any Python 3.10+ environment.
 
 ## Examples
 
-See `examples/` for a complete working setup:
+See `examples/` for complete working setups. Each has an OWL ontology, SHACL shapes, valid data, and intentionally broken data.
 
-- `ontology.ttl` -- OWL ontology with abstract + leaf classes
-- `shapes.ttl` -- SHACL shapes for data quality
-- `data_good.ttl` -- valid data (passes validation, loads)
-- `data_bad.ttl` -- broken data (fails with clear errors)
+### Default (custom ontology)
+
+- `examples/ontology.ttl` -- OWL ontology with abstract + leaf classes
+- `examples/shapes.ttl` -- SHACL shapes for data quality
+- `examples/data_good.ttl` -- valid data (passes validation, loads)
+- `examples/data_bad.ttl` -- broken data (fails with clear errors)
+
+### FOAF (Friend-of-a-Friend)
+
+Application profile based on [FOAF 0.99](http://xmlns.com/foaf/0.1/) with Dublin Core terms. Extracts people, organizations, projects, and relationships from text.
+
+```bash
+dregs init foaf.db --schema examples/foaf/ontology.ttl --shacl examples/foaf/shapes.ttl
+dregs load foaf.db examples/foaf/data_good.ttl --graph test
+dregs check foaf.db examples/foaf/data_bad.ttl
+```
+
+### Schema.org (Events + Articles)
+
+Application profile based on [Schema.org](https://schema.org/). Extracts events, articles, organizations, and people from web content.
+
+```bash
+dregs init schema.db --schema examples/schema-org/ontology.ttl --shacl examples/schema-org/shapes.ttl
+dregs load schema.db examples/schema-org/data_good.ttl --graph test
+dregs check schema.db examples/schema-org/data_bad.ttl
+```
+
+### DCAT (Data Catalog Vocabulary)
+
+Application profile based on [DCAT 3](http://www.w3.org/ns/dcat#) and DCAT-AP. Extracts dataset metadata from data portals and API documentation.
+
+```bash
+dregs init dcat.db --schema examples/dcat/ontology.ttl --shacl examples/dcat/shapes.ttl
+dregs load dcat.db examples/dcat/data_good.ttl --graph test
+dregs check dcat.db examples/dcat/data_bad.ttl
+```
 
 ## License
 

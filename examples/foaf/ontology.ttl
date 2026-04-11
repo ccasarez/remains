@@ -1,0 +1,126 @@
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+
+# ============================================================
+# FOAF Application Profile
+# Based on Friend-of-a-Friend (http://xmlns.com/foaf/0.1/)
+# with Dublin Core terms (http://purl.org/dc/terms/)
+#
+# Use case: extract people, organizations, projects, and their
+# relationships from emails, bios, team pages, and articles.
+#
+# Profile deviations from FOAF 0.99:
+# - foaf:mbox modeled as DatatypeProperty (spec: ObjectProperty +
+#   InverseFunctionalProperty taking mailto: URIs)
+# - foaf:member domain broadened to foaf:Agent (spec: foaf:Group)
+#   because this profile omits foaf:Group
+# - foaf:maker range narrowed to foaf:Agent (spec: owl:Thing)
+# - foaf:currentProject has "testing" status in the FOAF spec
+# ============================================================
+
+# === Abstract Classes ===
+
+foaf:Agent a owl:Class ;
+    rdfs:label "Agent" ;
+    rdfs:comment "Abstract: an entity that acts. Use Person or Organization." .
+
+# === Leaf Classes ===
+
+foaf:Person a owl:Class ;
+    rdfs:subClassOf foaf:Agent ;
+    rdfs:label "Person" ;
+    rdfs:comment "A human being with a name and optional contact details." ;
+    skos:example "example: Tim Berners-Lee, director of W3C" ;
+    skos:example "example: Manu Sporny, co-chair of the Credentials CG" .
+
+foaf:Organization a owl:Class ;
+    rdfs:subClassOf foaf:Agent ;
+    rdfs:label "Organization" ;
+    rdfs:comment "A company, institution, consortium, or working group." ;
+    skos:example "example: W3C (World Wide Web Consortium)" ;
+    skos:example "example: Mozilla Foundation" .
+
+foaf:Project a owl:Class ;
+    rdfs:label "Project" ;
+    rdfs:comment "A collaborative endeavor or initiative." ;
+    skos:example "example: Solid -- a decentralized web platform" ;
+    skos:example "example: ActivityPub -- federated social networking protocol" .
+
+foaf:Document a owl:Class ;
+    rdfs:label "Document" ;
+    rdfs:comment "A written resource: specification, article, or web page." ;
+    skos:example "example: RDF 1.1 Primer (W3C Working Group Note)" .
+
+# Disjointness
+[] a owl:AllDisjointClasses ;
+    owl:members ( foaf:Agent foaf:Project foaf:Document ) .
+
+[] a owl:AllDisjointClasses ;
+    owl:members ( foaf:Person foaf:Organization ) .
+
+# === Object Properties ===
+
+foaf:knows a owl:ObjectProperty ;
+    rdfs:label "knows" ;
+    rdfs:domain foaf:Person ;
+    rdfs:range foaf:Person ;
+    rdfs:comment "A person knows another person." .
+
+foaf:member a owl:ObjectProperty ;
+    rdfs:label "member" ;
+    rdfs:domain foaf:Agent ;
+    rdfs:range foaf:Person ;
+    rdfs:comment "A person who belongs to this group or organization." .
+
+foaf:currentProject a owl:ObjectProperty ;
+    rdfs:label "currentProject" ;
+    rdfs:domain foaf:Person ;
+    rdfs:range foaf:Project ;
+    rdfs:comment "A project that a person is currently working on." .
+
+foaf:maker a owl:ObjectProperty ;
+    rdfs:label "maker" ;
+    rdfs:domain foaf:Document ;
+    rdfs:range foaf:Agent ;
+    rdfs:comment "The agent that created this document." .
+
+# === Data Properties ===
+
+foaf:name a owl:DatatypeProperty ;
+    rdfs:label "name" ;
+    rdfs:domain foaf:Agent ;
+    rdfs:range xsd:string .
+
+foaf:mbox a owl:DatatypeProperty ;
+    rdfs:label "mbox" ;
+    rdfs:domain foaf:Agent ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Email address (e.g. mailto:alice@example.org)." .
+
+foaf:nick a owl:DatatypeProperty ;
+    rdfs:label "nick" ;
+    rdfs:domain foaf:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "A short nickname or handle." .
+
+dct:title a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "title" ;
+    rdfs:domain [
+        a owl:Class ;
+        owl:unionOf ( foaf:Project foaf:Document )
+    ] ;
+    rdfs:range xsd:string .
+
+dct:description a owl:DatatypeProperty ;
+    rdfs:label "description" ;
+    rdfs:domain [
+        a owl:Class ;
+        owl:unionOf ( foaf:Project foaf:Document )
+    ] ;
+    rdfs:range xsd:string .

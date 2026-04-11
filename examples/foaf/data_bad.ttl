@@ -1,0 +1,32 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix data: <http://example.com/data/> .
+
+# === Invalid data: demonstrates SHACL and schema violations ===
+
+# BUG 1: Typed as abstract foaf:Agent (should be Person or Organization)
+data:mystery-agent a foaf:Agent ;
+    foaf:name "Some Agent" ;
+    prov:wasDerivedFrom <http://example.com/sources/test.html> .
+
+# BUG 2: Person with empty name (SHACL minLength violation)
+data:empty-name a foaf:Person ;
+    foaf:name "" ;
+    prov:wasDerivedFrom <http://example.com/sources/test.html> .
+
+# BUG 3: Project missing required title (SHACL minCount violation)
+data:untitled-project a foaf:Project ;
+    dct:description "A project with no title" ;
+    prov:wasDerivedFrom <http://example.com/sources/test.html> .
+
+# BUG 4: Document missing required maker (SHACL minCount + class violation)
+data:orphan-doc a foaf:Document ;
+    dct:title "Orphan Document" ;
+    prov:wasDerivedFrom <http://example.com/sources/test.html> .
+
+# BUG 5: Unknown type not in schema
+data:gadget-x a foaf:Gadget ;
+    foaf:name "Mystery Gadget" ;
+    prov:wasDerivedFrom <http://example.com/sources/test.html> .
