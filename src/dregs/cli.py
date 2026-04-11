@@ -39,15 +39,15 @@ def cli():
 
 
 @cli.command()
-@click.argument("db", type=click.Path(path_type=Path))
+@click.argument("db", required=False, type=click.Path(path_type=Path))
 @click.option("--schema", "-s", type=click.Path(exists=True, path_type=Path), help="OWL ontology file (.ttl)")
 @click.option("--shacl", type=click.Path(exists=True, path_type=Path), help="SHACL shapes file (.ttl)")
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
-def init(db: Path, schema: Path | None, shacl: Path | None, as_json: bool):
+def init(db: Path | None, schema: Path | None, shacl: Path | None, as_json: bool):
     """Initialize a new triple store database.
 
     \b
-    DB  Path to SQLite database (created if not exists)
+    DB  Path or URL to database (or set DREGS_DSN)
     """
     store = DregsStore(db)
     try:
@@ -55,7 +55,7 @@ def init(db: Path, schema: Path | None, shacl: Path | None, as_json: bool):
         if as_json:
             click.echo(json.dumps(result, indent=2))
         else:
-            click.echo(f"Initialized {db}")
+            click.echo(f"Initialized {db or store._dsn}")
             if result["schema_triples"]:
                 click.echo(f"  Schema: {result['schema_triples']} triples")
             if result["shacl_triples"]:
@@ -65,18 +65,18 @@ def init(db: Path, schema: Path | None, shacl: Path | None, as_json: bool):
 
 
 @cli.command()
-@click.argument("db", type=click.Path(exists=True, path_type=Path))
+@click.argument("db", required=False, type=click.Path(path_type=Path))
 @click.argument("data", type=click.Path(exists=True, path_type=Path))
 @click.option("--graph", "-g", default=None, help="Named graph label.")
 @click.option("--no-validate", is_flag=True, help="Skip validation.")
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
-def load(db: Path, data: Path, graph: str | None, no_validate: bool, as_json: bool):
+def load(db: Path | None, data: Path, graph: str | None, no_validate: bool, as_json: bool):
     """Load Turtle data into the store.
 
     Validates against stored schema/SHACL by default. Rejects invalid data.
 
     \b
-    DB    Path to existing dregs database
+    DB    Path or URL to database (or set DREGS_DSN)
     DATA  Turtle file (.ttl) to load
     """
     store = DregsStore(db)
@@ -178,15 +178,15 @@ def check(
 
 
 @cli.command()
-@click.argument("db", type=click.Path(exists=True, path_type=Path))
+@click.argument("db", required=False, type=click.Path(path_type=Path))
 @click.argument("sparql", type=str)
 @click.option("--format", "-f", "fmt", type=click.Choice(["table", "json", "turtle"]), default="table", help="Output format.")
 @click.option("--graph", "-g", default=None, help="Query specific named graph only.")
-def query(db: Path, sparql: str, fmt: str, graph: str | None):
+def query(db: Path | None, sparql: str, fmt: str, graph: str | None):
     """Execute a SPARQL query against the store.
 
     \b
-    DB      Path to dregs database
+    DB      Path or URL to database (or set DREGS_DSN)
     SPARQL  SPARQL query string
     """
     from dregs.sparql import execute_sparql
@@ -209,14 +209,14 @@ def query(db: Path, sparql: str, fmt: str, graph: str | None):
 
 
 @cli.command()
-@click.argument("db", type=click.Path(exists=True, path_type=Path))
+@click.argument("db", required=False, type=click.Path(path_type=Path))
 @click.option("--type", "-t", "graph_type", type=click.Choice(["schema", "shacl", "data", "all"]), required=True, help="Type of graph to export.")
 @click.option("--graph", "-g", default=None, help="Export specific named graph.")
-def export(db: Path, graph_type: str, graph: str | None):
+def export(db: Path | None, graph_type: str, graph: str | None):
     """Export graphs from the store as Turtle.
 
     \b
-    DB  Path to dregs database
+    DB  Path or URL to database (or set DREGS_DSN)
     """
     store = DregsStore(db)
     try:
@@ -261,13 +261,13 @@ def prompt(source: Path):
 
 
 @cli.command()
-@click.argument("db", type=click.Path(exists=True, path_type=Path))
+@click.argument("db", required=False, type=click.Path(path_type=Path))
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
-def info(db: Path, as_json: bool):
+def info(db: Path | None, as_json: bool):
     """Show database statistics.
 
     \b
-    DB  Path to dregs database
+    DB  Path or URL to database (or set DREGS_DSN)
     """
     store = DregsStore(db)
     try:
@@ -275,7 +275,7 @@ def info(db: Path, as_json: bool):
         if as_json:
             click.echo(json.dumps(s, indent=2))
         else:
-            click.echo(f"Database: {db}")
+            click.echo(f"Database: {db or store._dsn}")
             click.echo(f"Version:  {s['version']}")
             click.echo(f"Created:  {s['created_at']}")
             click.echo(f"Triples:  {s['total_triples']}")
@@ -287,13 +287,13 @@ def info(db: Path, as_json: bool):
 
 
 @cli.command()
-@click.argument("db", type=click.Path(exists=True, path_type=Path))
+@click.argument("db", required=False, type=click.Path(path_type=Path))
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
-def graphs(db: Path, as_json: bool):
+def graphs(db: Path | None, as_json: bool):
     """List all named graphs in the store.
 
     \b
-    DB  Path to dregs database
+    DB  Path or URL to database (or set DREGS_DSN)
     """
     store = DregsStore(db)
     try:
@@ -314,15 +314,15 @@ def graphs(db: Path, as_json: bool):
 
 
 @cli.command()
-@click.argument("db", type=click.Path(exists=True, path_type=Path))
+@click.argument("db", required=False, type=click.Path(path_type=Path))
 @click.option("--graph", "-g", required=True, help="Graph URI to drop.")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation.")
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
-def drop(db: Path, graph: str, yes: bool, as_json: bool):
+def drop(db: Path | None, graph: str, yes: bool, as_json: bool):
     """Delete a named graph and all its triples.
 
     \b
-    DB  Path to dregs database
+    DB  Path or URL to database (or set DREGS_DSN)
     """
     if not yes:
         click.confirm(f"Drop graph '{graph}' and all its triples?", abort=True)

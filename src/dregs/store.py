@@ -1,6 +1,7 @@
 """SQLite triple store with validation-on-load."""
 from __future__ import annotations
 
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -154,15 +155,62 @@ def _rows_to_rdflib_graph(rows: list[tuple]) -> Graph:
 class DregsStore:
     """SQLite-backed RDF triple store."""
 
-    def __init__(self, db_path: str | Path):
-        self.db_path = Path(db_path)
-        self._conn: Optional[sqlite3.Connection] = None
+    def __init__(self, dsn: str | Path | None = None):
+        resolved = dsn if dsn is not None else os.environ.get("DREGS_DSN")
+        if resolved is None:
+            raise ValueError("No DSN. Pass a path/URL or set DREGS_DSN.")
+        self._dsn = str(resolved)
+        # Backward compat: expose db_path for local file DSNs
+        if self._dsn.startswith(("libsql://", "https://", "http://")):
+            self.db_path: Path | None = None
+        else:
+            self.db_path = Path(self._dsn)
+        self._conn = None
 
-    def _connect(self) -> sqlite3.Connection:
-        if self._conn is None:
-            self._conn = sqlite3.connect(str(self.db_path))
+    def _connect(self):
+        if self._conn is not None:
+            return self._conn
+
+        dsn = self._dsn
+
+        if dsn.startswith(("libsql://", "https://", "http://")):
+            try:
+                import libsql
+            except ImportError:
+                raise ImportError(
+                    "Remote Turso databases require the libsql package. "
+                    "Install with: pip install dregs[turso]"
+                )
+            self._conn = libsql.connect(
+                database=dsn,
+                auth_token=os.environ.get("DREGS_AUTH_TOKEN", ""),
+            )
+        elif os.environ.get("DREGS_SYNC_URL"):
+            try:
+                import libsql
+            except ImportError:
+                raise ImportError(
+                    "Embedded replica mode requires the libsql package. "
+                    "Install with: pip install dregs[turso]"
+                )
+            self._conn = libsql.connect(
+                database=dsn,
+                sync_url=os.environ["DREGS_SYNC_URL"],
+                auth_token=os.environ.get("DREGS_AUTH_TOKEN", ""),
+            )
+            self._conn.sync()
+        else:
+            self._conn = sqlite3.connect(dsn)
+
+        try:
             self._conn.execute("PRAGMA journal_mode=WAL")
+        except Exception:
+            pass
+        try:
             self._conn.execute("PRAGMA foreign_keys=ON")
+        except Exception:
+            pass
+
         return self._conn
 
     def close(self):
