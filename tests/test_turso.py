@@ -73,6 +73,12 @@ class TestConstructorDSN:
 class TestConnectionRouting:
     """_connect() should select sqlite3 for file paths and libsql for URLs."""
 
+    @pytest.fixture(autouse=True)
+    def _clean_env(self, monkeypatch):
+        """Ensure ambient Turso env vars don't leak into connection-routing tests."""
+        monkeypatch.delenv("DREGS_AUTH_TOKEN", raising=False)
+        monkeypatch.delenv("DREGS_SYNC_URL", raising=False)
+
     def test_local_file_uses_sqlite3(self, tmp_path):
         db = tmp_path / "local.db"
         store = DregsStore(str(db))
