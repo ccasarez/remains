@@ -11,6 +11,18 @@ from dregs.models import ValidationResult
 from dregs.store import DregsStore, validate_files
 
 
+_SQLITE_MAGIC = b"SQLite format 3\x00"
+
+
+def _is_sqlite(path: Path) -> bool:
+    """Detect SQLite files by magic bytes instead of file extension."""
+    try:
+        with open(path, "rb") as f:
+            return f.read(16) == _SQLITE_MAGIC
+    except (OSError, IsADirectoryError):
+        return False
+
+
 @click.group()
 @click.version_option(version="0.1.0")
 def cli():
@@ -119,7 +131,7 @@ def check(
     DATA    Turtle file to validate
     """
     # Detect mode: is SOURCE a database or a TTL file?
-    if source.suffix in (".db", ".sqlite", ".sqlite3"):
+    if _is_sqlite(source):
         # DB mode
         store = DregsStore(source)
         try:
@@ -238,7 +250,7 @@ def prompt(source: Path):
     """
     from dregs.prompt import prompt_from_file, prompt_from_store
 
-    if source.suffix in (".db", ".sqlite", ".sqlite3"):
+    if _is_sqlite(source):
         store = DregsStore(source)
         try:
             click.echo(prompt_from_store(store))
