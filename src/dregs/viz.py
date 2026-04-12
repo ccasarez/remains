@@ -1455,6 +1455,7 @@ def serve_viz(
     port: int = 7171,
     graph_uri: Optional[str] = None,
     open_browser: bool = True,
+    base_url: Optional[str] = None,
     _prebuilt_data: Optional[dict] = None,
 ) -> None:
     """Build graph data and serve the interactive visualizer."""
@@ -1501,8 +1502,14 @@ def serve_viz(
                 try:
                     self.wfile.write(b": connected\n\n")
                     self.wfile.flush()
-                    # Replay existing annotations
+                    # Replay existing annotations (skip toasts — they're ephemeral)
                     for msg in replay:
+                        try:
+                            _ann = json.loads(msg)
+                            if _ann.get("type") == "toast":
+                                continue
+                        except (json.JSONDecodeError, AttributeError):
+                            pass
                         self.wfile.write(f"data: {msg}\n\n".encode())
                     if replay:
                         self.wfile.flush()
@@ -1536,12 +1543,12 @@ def serve_viz(
                     self.wfile.write(b'{"error": "invalid JSON"}')
                     return
 
-                # Store in history (clear resets it)
+                # Store in history (clear resets it; toasts are ephemeral, not stored)
                 msg = json.dumps(annotation)
                 with sse_lock:
                     if annotation.get("type") == "clear":
                         annotation_history.clear()
-                    else:
+                    elif annotation.get("type") != "toast":
                         annotation_history.append(msg)
 
                 # Broadcast to all SSE clients
@@ -1601,8 +1608,9 @@ def serve_viz(
     cc = len(data.get("analytics", {}).get("communities", []))
     mod = data.get("analytics", {}).get("modularity", 0)
     bias = data.get("analytics", {}).get("biasLabel", "?")
+    url = base_url or f"http://localhost:{port}"
     print(f"dregs viz — {nc} nodes, {ec} edges, {cc} communities (modularity={mod}, {bias})")
-    print(f"Serving on http://0.0.0.0:{port}")
+    print(f"Serving on {url}")
 
     if open_browser:
         threading.Timer(0.5, lambda: webbrowser.open(f"http://localhost:{port}")).start()

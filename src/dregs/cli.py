@@ -35,7 +35,13 @@ def cli():
       dregs query "SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10" --db my.db
       dregs export --db my.db --type schema
 
-    Set DREGS_DSN to skip --db on every command.
+    \b
+    Environment variables:
+      DREGS_DSN         Database path or libsql:// URL (replaces --db).
+      DREGS_AUTH_TOKEN  Auth token for remote libsql databases.
+      DREGS_SYNC_URL    Turso sync URL for embedded replica mode.
+      DREGS_VIZ_URL     Base URL printed by `dregs viz`. Use {port}
+                        as placeholder, e.g. https://myhost.example:{port}
     """
     pass
 
@@ -342,9 +348,13 @@ def viz(db: Path | None, port: int, graph: str | None, no_open: bool):
     """
     from dregs.viz import serve_viz
 
+    import os
+    base_url = os.environ.get("DREGS_VIZ_URL")
+    if base_url and "{port}" in base_url:
+        base_url = base_url.replace("{port}", str(port))
     store = DregsStore(db)
     try:
-        serve_viz(store, port=port, graph_uri=graph, open_browser=not no_open)
+        serve_viz(store, port=port, graph_uri=graph, open_browser=not no_open, base_url=base_url)
     finally:
         store.close()
 
