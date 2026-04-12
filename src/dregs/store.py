@@ -1,4 +1,4 @@
-"""SQLite triple store with validation-on-load."""
+"""SQLite triple store with 3 fixed graphs and system/user split."""
 from __future__ import annotations
 
 import os
@@ -10,7 +10,7 @@ from typing import Optional
 from rdflib import OWL, RDF, RDFS, Graph, Literal, Namespace, URIRef, BNode
 from rdflib.term import Node
 
-from dregs.models import GraphInfo, Triple, ValidationResult
+from dregs.models import Triple, ValidationResult
 
 PROV = Namespace("http://www.w3.org/ns/prov#")
 SKOS = Namespace("http://www.w3.org/2004/02/skos/core#")
@@ -45,15 +45,6 @@ CREATE INDEX IF NOT EXISTS idx_graph ON triples(graph);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_triple
     ON triples(subject, predicate, object, object_type, datatype, lang, graph);
 
-CREATE TABLE IF NOT EXISTS graphs (
-    uri TEXT PRIMARY KEY,
-    label TEXT,
-    graph_type TEXT NOT NULL,
-    source_file TEXT,
-    created_at TEXT,
-    triple_count INTEGER DEFAULT 0
-);
-
 CREATE TABLE IF NOT EXISTS prefixes (
     prefix TEXT PRIMARY KEY,
     namespace TEXT NOT NULL
@@ -73,6 +64,8 @@ _DEFAULT_PREFIXES = {
     "skos": "http://www.w3.org/2004/02/skos/core#",
     "prov": "http://www.w3.org/ns/prov#",
     "sh": "http://www.w3.org/ns/shacl#",
+    "dregs": "urn:dregs:system#",
+    "dregs-sh": "urn:dregs:shapes#",
 }
 
 
@@ -89,12 +82,7 @@ def _is_well_known(uri: URIRef) -> bool:
 
 
 def _rdflib_triple_to_row(s: Node, p: Node, o: Node, graph: str) -> Optional[tuple]:
-    """Convert rdflib triple to SQLite row.
-
-    BNode subjects are stored as ``_:{id}`` strings.
-    Returns None for unsupported node types (non-URI predicates, etc.).
-    """
-    # Subject
+    """Convert rdflib triple to SQLite row."""
     if isinstance(s, BNode):
         subj = f"_:{s}"
     elif isinstance(s, URIRef):
@@ -102,13 +90,11 @@ def _rdflib_triple_to_row(s: Node, p: Node, o: Node, graph: str) -> Optional[tup
     else:
         return None
 
-    # Predicate
     if isinstance(p, URIRef):
         pred = str(p)
     else:
         return None
 
-    # Object — datatype/lang use "" (not None) so the UNIQUE index works
     if isinstance(o, URIRef):
         return (subj, pred, str(o), "uri", "", "", graph)
     elif isinstance(o, BNode):
@@ -127,7 +113,6 @@ def _rows_to_rdflib_graph(rows: list[tuple]) -> Graph:
     """Convert SQLite rows back to rdflib Graph."""
     g = Graph()
     for row in rows:
-        # row: (subject, predicate, object, object_type, datatype, lang)
         subj_str, pred_str, obj_str, obj_type, datatype, lang = row[:6]
 
         if subj_str.startswith("_:"):
@@ -153,11 +138,19 @@ def _rows_to_rdflib_graph(rows: list[tuple]) -> Graph:
 
 
 class DregsStore:
-    """SQLite-backed RDF triple store."""
+    """SQLite-backed RDF triple store with 3 fixed graphs.
 
-    # XDG-compliant default: ~/.local/share/dregs/dregs.db
+    Graphs:
+        '' (default)   — user data + topics
+        'urn:ontology' — system ontology + user ontology
+        'urn:shacl'    — system shapes + user shapes
+    """
+
     _XDG_DEFAULT_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "dregs"
     _XDG_DEFAULT_DB = _XDG_DEFAULT_DIR / "dregs.db"
+    _SYSTEM_ONTOLOGY = Path(__file__).parent / "system" / "system-ontology.ttl"
+    _SYSTEM_SHAPES = Path(__file__).parent / "system" / "system-shapes.ttl"
+    _SYSTEM_NAMESPACES = ("urn:dregs:system#", "urn:dregs:shapes#")
 
     def __init__(self, dsn: str | Path | None = None):
         resolved = dsn if dsn is not None else os.environ.get("DREGS_DSN")
@@ -167,7 +160,6 @@ class DregsStore:
             resolved = self._XDG_DEFAULT_DB
             self._used_default = True
         self._dsn = str(resolved).strip()
-        # Backward compat: expose db_path for local file DSNs
         if self._dsn.startswith(("libsql://", "https://", "http://")):
             self.db_path: Path | None = None
         else:
@@ -213,258 +205,20 @@ class DregsStore:
             self._conn.close()
             self._conn = None
 
+    # -----------------------------------------------------------------
+    # Init
+    # -----------------------------------------------------------------
+
     def init(
-        self,
-        schema_path: Optional[Path] = None,
-        shacl_path: Optional[Path] = None,
-    ) -> dict:
-        """Initialize database. Load schema and/or SHACL shapes."""
-        conn = self._connect()
-        conn.executescript(_INIT_SQL)
-
-        # Store metadata
-        now = datetime.now(timezone.utc).isoformat()
-        conn.execute(
-            "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
-            ("version", "0.1.0"),
-        )
-        conn.execute(
-            "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
-            ("created_at", now),
-        )
-
-        # Store default prefixes
-        for prefix, ns in _DEFAULT_PREFIXES.items():
-            conn.execute(
-                "INSERT OR REPLACE INTO prefixes (prefix, namespace) VALUES (?, ?)",
-                (prefix, ns),
-            )
-
-        result = {"schema_triples": 0, "shacl_triples": 0}
-
-        if schema_path:
-            g = Graph()
-            g.parse(str(schema_path), format="turtle")
-            graph_uri = f"file:{schema_path.name}"
-            count = self._insert_graph(conn, g, graph_uri, "schema", schema_path.name)
-            result["schema_triples"] = count
-
-            # Extract prefixes from schema
-            for prefix, ns in g.namespaces():
-                if prefix:
-                    conn.execute(
-                        "INSERT OR REPLACE INTO prefixes (prefix, namespace) VALUES (?, ?)",
-                        (str(prefix), str(ns)),
-                    )
-
-        if shacl_path:
-            g = Graph()
-            g.parse(str(shacl_path), format="turtle")
-            graph_uri = f"file:{shacl_path.name}"
-            count = self._insert_graph(conn, g, graph_uri, "shacl", shacl_path.name)
-            result["shacl_triples"] = count
-
-        conn.commit()
-        return result
-
-    def _insert_graph(
-        self,
-        conn: sqlite3.Connection,
-        g: Graph,
-        graph_uri: str,
-        graph_type: str,
-        source_file: Optional[str] = None,
-        label: Optional[str] = None,
-    ) -> int:
-        """Insert rdflib Graph into SQLite under a named graph."""
-        now = datetime.now(timezone.utc).isoformat()
-        rows = []
-        for s, p, o in g:
-            row = _rdflib_triple_to_row(s, p, o, graph_uri)
-            if row:
-                rows.append(row)
-
-        conn.executemany(
-            """INSERT OR IGNORE INTO triples
-               (subject, predicate, object, object_type, datatype, lang, graph)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            rows,
-        )
-
-        # Count actual triples stored (INSERT OR IGNORE may skip duplicates)
-        actual = conn.execute(
-            "SELECT COUNT(*) FROM triples WHERE graph = ?", (graph_uri,)
-        ).fetchone()[0]
-
-        conn.execute(
-            """INSERT OR REPLACE INTO graphs
-               (uri, label, graph_type, source_file, created_at, triple_count)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (graph_uri, label or source_file or graph_uri, graph_type, source_file, now, actual),
-        )
-
-        return actual
-
-    def load(
-        self,
-        data_path: Path,
-        graph_name: Optional[str] = None,
-    ) -> dict:
-        """Load Turtle data into the store. Always validates against schema/SHACL."""
-        conn = self._connect()
-
-        # Parse input data
-        data_graph = Graph()
-        data_graph.parse(str(data_path), format="turtle")
-
-        # Pull schema and shacl from DB
-        schema_graph = self._load_graphs_by_type(conn, "schema")
-        shacl_graph = self._load_graphs_by_type(conn, "shacl")
-
-        if len(schema_graph) == 0:
-            raise ValueError("No schema loaded. Run 'dregs init --schema' first.")
-
-        result = run_validation(
-            schema_graph=schema_graph,
-            data_graph=data_graph,
-            shacl_graph=shacl_graph if len(shacl_graph) > 0 else None,
-        )
-
-        if not result.conforms:
-            return {
-                "loaded": False,
-                "validation": result,
-            }
-
-        # Determine graph URI
-        graph_uri = graph_name or f"file:{data_path.name}"
-
-        count = self._insert_graph(
-            conn, data_graph, graph_uri, "data", data_path.name, label=graph_name
-        )
-        conn.commit()
-
-        return {
-            "loaded": True,
-            "triple_count": count,
-            "graph": graph_uri,
-        }
-
-    def _load_graphs_by_type(self, conn: sqlite3.Connection, graph_type: str) -> Graph:
-        """Load all graphs of a given type into a single rdflib Graph."""
-        rows = conn.execute(
-            """SELECT subject, predicate, object, object_type, datatype, lang
-               FROM triples
-               WHERE graph IN (SELECT uri FROM graphs WHERE graph_type = ?)""",
-            (graph_type,),
-        ).fetchall()
-        return _rows_to_rdflib_graph(rows)
-
-    def load_all_graphs(self) -> Graph:
-        """Load all triples into a single rdflib Graph (union graph)."""
-        conn = self._connect()
-        rows = conn.execute(
-            "SELECT subject, predicate, object, object_type, datatype, lang FROM triples"
-        ).fetchall()
-        return _rows_to_rdflib_graph(rows)
-
-    def load_graph(self, graph_uri: str) -> Graph:
-        """Load a specific named graph into rdflib Graph."""
-        conn = self._connect()
-        rows = conn.execute(
-            """SELECT subject, predicate, object, object_type, datatype, lang
-               FROM triples WHERE graph = ?""",
-            (graph_uri,),
-        ).fetchall()
-        return _rows_to_rdflib_graph(rows)
-
-    def export_by_type(self, graph_type: str) -> str:
-        """Export graphs of a given type as Turtle."""
-        conn = self._connect()
-        g = self._load_graphs_by_type(conn, graph_type)
-
-        # Bind prefixes
-        for row in conn.execute("SELECT prefix, namespace FROM prefixes").fetchall():
-            g.bind(row[0], Namespace(row[1]))
-
-        return g.serialize(format="turtle")
-
-    def export_graph(self, graph_uri: str) -> str:
-        """Export a specific named graph as Turtle."""
-        conn = self._connect()
-        g = self.load_graph(graph_uri)
-
-        for row in conn.execute("SELECT prefix, namespace FROM prefixes").fetchall():
-            g.bind(row[0], Namespace(row[1]))
-
-        return g.serialize(format="turtle")
-
-    def list_graphs(self) -> list[GraphInfo]:
-        """List all named graphs."""
-        conn = self._connect()
-        rows = conn.execute(
-            "SELECT uri, label, graph_type, source_file, created_at, triple_count FROM graphs"
-        ).fetchall()
-        return [
-            GraphInfo(
-                uri=r[0], label=r[1], graph_type=r[2],
-                source_file=r[3], created_at=r[4], triple_count=r[5],
-            )
-            for r in rows
-        ]
-
-    def drop_graph(self, graph_uri: str) -> int:
-        """Delete a named graph and its triples. Returns count of deleted triples."""
-        conn = self._connect()
-        cursor = conn.execute("DELETE FROM triples WHERE graph = ?", (graph_uri,))
-        count = cursor.rowcount
-        conn.execute("DELETE FROM graphs WHERE uri = ?", (graph_uri,))
-        conn.commit()
-        return count
-
-    def stats(self) -> dict:
-        """Return database statistics."""
-        conn = self._connect()
-        total = conn.execute("SELECT COUNT(*) FROM triples").fetchone()[0]
-        graph_count = conn.execute("SELECT COUNT(*) FROM graphs").fetchone()[0]
-        by_type = conn.execute(
-            "SELECT graph_type, COUNT(*), SUM(triple_count) FROM graphs GROUP BY graph_type"
-        ).fetchall()
-        version = conn.execute(
-            "SELECT value FROM metadata WHERE key = 'version'"
-        ).fetchone()
-        created = conn.execute(
-            "SELECT value FROM metadata WHERE key = 'created_at'"
-        ).fetchone()
-
-        return {
-            "total_triples": total,
-            "graph_count": graph_count,
-            "by_type": {r[0]: {"graphs": r[1], "triples": r[2] or 0} for r in by_type},
-            "version": version[0] if version else "unknown",
-            "created_at": created[0] if created else "unknown",
-        }
-
-    def get_prefixes(self) -> dict[str, str]:
-        """Return prefix -> namespace mapping."""
-        conn = self._connect()
-        rows = conn.execute("SELECT prefix, namespace FROM prefixes").fetchall()
-        return {r[0]: r[1] for r in rows}
-
-    # =================================================================
-    # v2 API: 3 fixed graphs (default, urn:ontology, urn:shacl)
-    # =================================================================
-
-    _SYSTEM_ONTOLOGY = Path(__file__).parent / "system" / "system-ontology.ttl"
-    _SYSTEM_SHAPES = Path(__file__).parent / "system" / "system-shapes.ttl"
-    _SYSTEM_NAMESPACES = ("urn:dregs:system#", "urn:dregs:shapes#")
-
-    def init_v2(
         self,
         ontology_path: Optional[Path] = None,
         shacl_path: Optional[Path] = None,
     ) -> dict:
-        """Initialize v2 database with 3 fixed graphs."""
+        """Initialize database with 3 fixed graphs.
+
+        Loads system ontology + shapes automatically.
+        User ontology and shapes are merged into the same graphs.
+        """
         conn = self._connect()
         conn.executescript(_INIT_SQL)
 
@@ -484,16 +238,6 @@ class DregsStore:
                 (prefix, ns),
             )
 
-        # Extra prefixes for v2
-        conn.execute(
-            "INSERT OR REPLACE INTO prefixes (prefix, namespace) VALUES (?, ?)",
-            ("dregs", "urn:dregs:system#"),
-        )
-        conn.execute(
-            "INSERT OR REPLACE INTO prefixes (prefix, namespace) VALUES (?, ?)",
-            ("dregs-sh", "urn:dregs:shapes#"),
-        )
-
         result = {"system_ontology_triples": 0, "user_ontology_triples": 0,
                   "system_shacl_triples": 0, "user_shacl_triples": 0}
 
@@ -501,7 +245,7 @@ class DregsStore:
         if self._SYSTEM_ONTOLOGY.exists():
             g = Graph()
             g.parse(str(self._SYSTEM_ONTOLOGY), format="turtle")
-            count = self._insert_triples_to_graph(conn, g, "urn:ontology")
+            count = self._insert_triples(conn, g, "urn:ontology")
             result["system_ontology_triples"] = count
             for prefix, ns in g.namespaces():
                 if prefix:
@@ -514,7 +258,7 @@ class DregsStore:
         if ontology_path:
             g = Graph()
             g.parse(str(ontology_path), format="turtle")
-            count = self._insert_triples_to_graph(conn, g, "urn:ontology")
+            count = self._insert_triples(conn, g, "urn:ontology")
             result["user_ontology_triples"] = count
             for prefix, ns in g.namespaces():
                 if prefix:
@@ -527,20 +271,54 @@ class DregsStore:
         if self._SYSTEM_SHAPES.exists():
             g = Graph()
             g.parse(str(self._SYSTEM_SHAPES), format="turtle")
-            count = self._insert_triples_to_graph(conn, g, "urn:shacl")
+            count = self._insert_triples(conn, g, "urn:shacl")
             result["system_shacl_triples"] = count
 
         # Load user shapes into urn:shacl
         if shacl_path:
             g = Graph()
             g.parse(str(shacl_path), format="turtle")
-            count = self._insert_triples_to_graph(conn, g, "urn:shacl")
+            count = self._insert_triples(conn, g, "urn:shacl")
             result["user_shacl_triples"] = count
 
         conn.commit()
         return result
 
-    def _insert_triples_to_graph(self, conn, g: Graph, graph: str) -> int:
+    # -----------------------------------------------------------------
+    # Load
+    # -----------------------------------------------------------------
+
+    def load(self, data_path: Path) -> dict:
+        """Load Turtle data into default graph. Validates against ontology + shapes."""
+        conn = self._connect()
+
+        data_graph = Graph()
+        data_graph.parse(str(data_path), format="turtle")
+
+        schema_graph = self._load_graph(conn, "urn:ontology")
+        shacl_graph = self._load_graph(conn, "urn:shacl")
+
+        if len(schema_graph) == 0:
+            raise ValueError("No ontology loaded. Run 'dregs init' first.")
+
+        result = run_validation(
+            schema_graph=schema_graph,
+            data_graph=data_graph,
+            shacl_graph=shacl_graph if len(shacl_graph) > 0 else None,
+        )
+
+        if not result.conforms:
+            return {"loaded": False, "validation": result}
+
+        count = self._insert_triples(conn, data_graph, "")
+        conn.commit()
+        return {"loaded": True, "triple_count": count}
+
+    # -----------------------------------------------------------------
+    # Query helpers
+    # -----------------------------------------------------------------
+
+    def _insert_triples(self, conn, g: Graph, graph: str) -> int:
         """Insert rdflib Graph triples into a specific graph. Returns count."""
         rows = []
         for s, p, o in g:
@@ -555,33 +333,7 @@ class DregsStore:
         )
         return len(rows)
 
-    def load_v2(self, data_path: Path) -> dict:
-        """Load Turtle data into default graph. Validates against urn:ontology + urn:shacl."""
-        conn = self._connect()
-
-        data_graph = Graph()
-        data_graph.parse(str(data_path), format="turtle")
-
-        schema_graph = self._load_graph_rdflib(conn, "urn:ontology")
-        shacl_graph = self._load_graph_rdflib(conn, "urn:shacl")
-
-        if len(schema_graph) == 0:
-            raise ValueError("No ontology loaded. Run 'dregs init' first.")
-
-        result = run_validation(
-            schema_graph=schema_graph,
-            data_graph=data_graph,
-            shacl_graph=shacl_graph if len(shacl_graph) > 0 else None,
-        )
-
-        if not result.conforms:
-            return {"loaded": False, "validation": result}
-
-        count = self._insert_triples_to_graph(conn, data_graph, "")
-        conn.commit()
-        return {"loaded": True, "triple_count": count}
-
-    def _load_graph_rdflib(self, conn, graph: str) -> Graph:
+    def _load_graph(self, conn, graph: str) -> Graph:
         """Load a specific graph into rdflib Graph."""
         rows = conn.execute(
             "SELECT subject, predicate, object, object_type, datatype, lang FROM triples WHERE graph = ?",
@@ -589,32 +341,51 @@ class DregsStore:
         ).fetchall()
         return _rows_to_rdflib_graph(rows)
 
-    def update_ontology(self, ontology_path: Path) -> int:
-        """Replace user ontology triples in urn:ontology. System triples protected."""
-        self._check_no_system_namespace(ontology_path)
-
+    def load_all_graphs(self) -> Graph:
+        """Load all triples into a single rdflib Graph (union graph)."""
         conn = self._connect()
-        # Delete non-system triples from urn:ontology
+        rows = conn.execute(
+            "SELECT subject, predicate, object, object_type, datatype, lang FROM triples"
+        ).fetchall()
+        return _rows_to_rdflib_graph(rows)
+
+    def load_data_graph(self) -> Graph:
+        """Load default data graph into rdflib Graph."""
+        conn = self._connect()
+        return self._load_graph(conn, "")
+
+    def load_ontology_graph(self) -> Graph:
+        """Load ontology graph into rdflib Graph."""
+        conn = self._connect()
+        return self._load_graph(conn, "urn:ontology")
+
+    # -----------------------------------------------------------------
+    # Update schema
+    # -----------------------------------------------------------------
+
+    def update_ontology(self, ontology_path: Path) -> int:
+        """Replace user ontology triples. System triples protected."""
+        self._check_no_system_namespace(ontology_path)
+        conn = self._connect()
         conn.execute(
             "DELETE FROM triples WHERE graph = 'urn:ontology' AND subject NOT LIKE 'urn:dregs:%'",
         )
         g = Graph()
         g.parse(str(ontology_path), format="turtle")
-        count = self._insert_triples_to_graph(conn, g, "urn:ontology")
+        count = self._insert_triples(conn, g, "urn:ontology")
         conn.commit()
         return count
 
     def update_shacl(self, shacl_path: Path) -> int:
-        """Replace user SHACL triples in urn:shacl. System shapes protected."""
+        """Replace user SHACL triples. System shapes protected."""
         self._check_no_system_namespace(shacl_path)
-
         conn = self._connect()
         conn.execute(
             "DELETE FROM triples WHERE graph = 'urn:shacl' AND subject NOT LIKE 'urn:dregs:%'",
         )
         g = Graph()
         g.parse(str(shacl_path), format="turtle")
-        count = self._insert_triples_to_graph(conn, g, "urn:shacl")
+        count = self._insert_triples(conn, g, "urn:shacl")
         conn.commit()
         return count
 
@@ -631,14 +402,22 @@ class DregsStore:
                         f"Subject {s_str} is protected."
                     )
 
-    def export_v2(self, what: str = "data") -> str:
-        """Export data, ontology, shacl, or all as Turtle."""
+    # -----------------------------------------------------------------
+    # Export
+    # -----------------------------------------------------------------
+
+    def export(self, what: str = "data") -> str:
+        """Export data, ontology, shacl, or all as Turtle.
+
+        Args:
+            what: 'data' (default graph), 'ontology' (user only),
+                  'shacl' (user only), 'all' (everything)
+        """
         conn = self._connect()
 
         if what == "data":
-            g = self._load_graph_rdflib(conn, "")
+            g = self._load_graph(conn, "")
         elif what == "ontology":
-            # User ontology only (exclude system triples)
             rows = conn.execute(
                 "SELECT subject, predicate, object, object_type, datatype, lang "
                 "FROM triples WHERE graph = 'urn:ontology' AND subject NOT LIKE 'urn:dregs:%'",
@@ -662,8 +441,12 @@ class DregsStore:
             g.bind(prefix, Namespace(ns))
         return g.serialize(format="turtle")
 
-    def stats_v2(self) -> dict:
-        """Return v2 database statistics."""
+    # -----------------------------------------------------------------
+    # Stats
+    # -----------------------------------------------------------------
+
+    def stats(self) -> dict:
+        """Return database statistics."""
         conn = self._connect()
         data = conn.execute("SELECT COUNT(*) FROM triples WHERE graph = ''").fetchone()[0]
         ont = conn.execute("SELECT COUNT(*) FROM triples WHERE graph = 'urn:ontology'").fetchone()[0]
@@ -671,13 +454,11 @@ class DregsStore:
         version = conn.execute("SELECT value FROM metadata WHERE key = 'version'").fetchone()
         created = conn.execute("SELECT value FROM metadata WHERE key = 'created_at'").fetchone()
 
-        # Count topics
         topic_count = conn.execute(
             "SELECT COUNT(DISTINCT subject) FROM triples WHERE graph = '' AND predicate = ? AND object = ?",
             (str(RDF.type), "urn:dregs:system#Topic"),
         ).fetchone()[0]
 
-        # Count domains
         domain_count = conn.execute(
             "SELECT COUNT(DISTINCT subject) FROM triples WHERE graph = 'urn:ontology' AND predicate = ? AND object = ?",
             (str(RDF.type), "urn:dregs:system#Domain"),
@@ -693,13 +474,24 @@ class DregsStore:
             "created_at": created[0] if created else "unknown",
         }
 
+    def get_prefixes(self) -> dict[str, str]:
+        """Return prefix -> namespace mapping."""
+        conn = self._connect()
+        rows = conn.execute("SELECT prefix, namespace FROM prefixes").fetchall()
+        return {r[0]: r[1] for r in rows}
+
+    # -----------------------------------------------------------------
+    # Domains (urn:ontology graph)
+    # -----------------------------------------------------------------
+
     def create_domain(self, slug: str, label: str, class_uris: list[str]):
         """Create a domain in urn:ontology graph."""
         conn = self._connect()
         domain_uri = f"urn:dregs:domain#{slug}"
         rows = [
             (domain_uri, str(RDF.type), "urn:dregs:system#Domain", "uri", "", "", "urn:ontology"),
-            (domain_uri, str(RDFS.label), label, "typed_literal", str(URIRef("http://www.w3.org/2001/XMLSchema#string")), "", "urn:ontology"),
+            (domain_uri, str(RDFS.label), label, "typed_literal",
+             str(URIRef("http://www.w3.org/2001/XMLSchema#string")), "", "urn:ontology"),
         ]
         for cls_uri in class_uris:
             rows.append(
@@ -730,7 +522,7 @@ class DregsStore:
         conn.commit()
 
     def list_domains(self) -> list[dict]:
-        """List all domains in urn:ontology graph."""
+        """List all domains."""
         conn = self._connect()
         domain_uris = conn.execute(
             "SELECT DISTINCT subject FROM triples WHERE graph = 'urn:ontology' AND predicate = ? AND object = ?",
@@ -755,13 +547,18 @@ class DregsStore:
             })
         return domains
 
+    # -----------------------------------------------------------------
+    # Topics (default data graph)
+    # -----------------------------------------------------------------
+
     def create_topic(self, slug: str, label: str, member_uris: list[str]):
         """Create a topic in default data graph."""
         conn = self._connect()
         topic_uri = f"urn:dregs:topic#{slug}"
         rows = [
             (topic_uri, str(RDF.type), "urn:dregs:system#Topic", "uri", "", "", ""),
-            (topic_uri, str(RDFS.label), label, "typed_literal", str(URIRef("http://www.w3.org/2001/XMLSchema#string")), "", ""),
+            (topic_uri, str(RDFS.label), label, "typed_literal",
+             str(URIRef("http://www.w3.org/2001/XMLSchema#string")), "", ""),
         ]
         for member_uri in member_uris:
             rows.append(
@@ -776,7 +573,7 @@ class DregsStore:
         conn.commit()
 
     def list_topics(self) -> list[dict]:
-        """List all topics in default data graph."""
+        """List all topics."""
         conn = self._connect()
         topic_uris = conn.execute(
             "SELECT DISTINCT subject FROM triples WHERE graph = '' AND predicate = ? AND object = ?",
@@ -802,7 +599,7 @@ class DregsStore:
         return topics
 
 
-# === Validation (absorbed from owl-guard) ===
+# === Validation ===
 
 
 def run_validation(
@@ -815,7 +612,6 @@ def run_validation(
     """Full validation pipeline: SHACL -> OWL reasoning -> schema checks."""
     result = ValidationResult()
 
-    # Combine schema + data for reasoning
     combined = Graph()
     for t in schema_graph:
         combined.add(t)
@@ -824,17 +620,14 @@ def run_validation(
 
     result.total_triples_before = len(combined)
 
-    # SHACL validation BEFORE reasoning (closed-world check on raw data)
     if shacl_graph and len(shacl_graph) > 0:
         result.shacl_conforms, result.shacl_violations = _run_shacl(
             combined, shacl_graph
         )
 
-    # OWL Reasoning
     result.owl_inferred_triples = _run_owl_reasoning(combined, reasoning_regime)
     result.total_triples_after = len(combined)
 
-    # Schema structure checks
     result.schema_violations = _run_schema_checks(
         schema_graph, combined, require_provenance
     )
@@ -844,7 +637,6 @@ def run_validation(
 
 
 def _run_owl_reasoning(graph: Graph, regime: str = "owlrl") -> int:
-    """Run OWL-RL reasoning. Returns count of inferred triples."""
     import owlrl
 
     before = len(graph)
@@ -859,7 +651,6 @@ def _run_owl_reasoning(graph: Graph, regime: str = "owlrl") -> int:
 
 
 def _run_shacl(data_graph: Graph, shacl_graph: Graph) -> tuple[bool, list[str]]:
-    """Run SHACL validation. Returns (conforms, violations)."""
     from pyshacl import validate
 
     conforms, results_graph, results_text = validate(
@@ -901,10 +692,8 @@ def _run_schema_checks(
     combined_graph: Graph,
     require_provenance: bool = False,
 ) -> list[str]:
-    """Check instances conform to OWL schema structure."""
     violations = []
 
-    # Gather schema classes
     schema_classes: set[URIRef] = set()
     for s in schema_graph.subjects(RDF.type, OWL.Class):
         if isinstance(s, URIRef):
@@ -913,7 +702,6 @@ def _run_schema_checks(
         if isinstance(s, URIRef):
             schema_classes.add(s)
 
-    # Identify abstract (non-leaf) classes
     parents: set[URIRef] = set()
     for _, _, parent in schema_graph.triples((None, RDFS.subClassOf, None)):
         if isinstance(parent, URIRef):
@@ -921,16 +709,9 @@ def _run_schema_checks(
     abstract_classes = schema_classes & parents
     leaf_classes = schema_classes - parents
 
-    # Find instance subjects — only exclude actual schema definitions,
-    # not every URI that appears as a subject in the schema graph.
     _SCHEMA_DEF_TYPES = {
-        OWL.Class,
-        OWL.ObjectProperty,
-        OWL.DatatypeProperty,
-        OWL.AnnotationProperty,
-        OWL.Ontology,
-        RDFS.Class,
-        RDFS.Datatype,
+        OWL.Class, OWL.ObjectProperty, OWL.DatatypeProperty,
+        OWL.AnnotationProperty, OWL.Ontology, RDFS.Class, RDFS.Datatype,
     }
     schema_definitions: set[Node] = set()
     for def_type in _SCHEMA_DEF_TYPES:
@@ -938,7 +719,6 @@ def _run_schema_checks(
             schema_definitions.add(s)
     instance_subjects = set(combined_graph.subjects()) - schema_definitions
 
-    # Provenance source URIs
     prov_sources: set[URIRef] = set()
     for obj in combined_graph.objects(predicate=PROV.wasDerivedFrom):
         if isinstance(obj, URIRef):

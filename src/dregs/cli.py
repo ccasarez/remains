@@ -26,7 +26,6 @@ _LOCAL_DB_HINT = (
 
 
 def _open_store(db: Path | None) -> DregsStore:
-    """Create a DregsStore, warn on stderr if falling back to the XDG default."""
     store = DregsStore(db)
     if store._used_default:
         click.echo(f"Using default database: {store._dsn}", err=True)
@@ -35,7 +34,6 @@ def _open_store(db: Path | None) -> DregsStore:
 
 
 def _is_sqlite(path: Path) -> bool:
-    """Detect SQLite files by magic bytes instead of file extension."""
     try:
         with open(path, "rb") as f:
             return f.read(16) == _SQLITE_MAGIC
@@ -44,94 +42,78 @@ def _is_sqlite(path: Path) -> bool:
 
 
 @click.group()
-@click.version_option(version="0.1.0")
+@click.version_option(version="0.2.0")
 def cli():
-    """dregs: SQLite RDF triple store with SPARQL, OWL reasoning, and SHACL validation.
+    """dregs: SQLite RDF triple store with 3 fixed graphs.
 
     \b
-    Quick start (using DREGS_DSN):
-      dregs init --schema ontology.ttl --shacl shapes.ttl
-      dregs load data.ttl --graph emails
+    Architecture:
+      DEFAULT graph  = user data + topics
+      urn:ontology   = system ontology + user ontology
+      urn:shacl      = system shapes + user shapes
+
+    \b
+    Quick start:
+      dregs init --ontology ontology.ttl --shacl shapes.ttl
+      dregs load data.ttl
       dregs query "SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10"
-      dregs export --type schema
+      dregs prompt
+      dregs prompt --domain people
 
     \b
-    Connection modes:
-
-    \b
-      Local only (no network):
-        export DREGS_DSN=./my.db
-
-    \b
-      Remote only (Turso Cloud):
-        export DREGS_DSN=libsql://your-db.turso.io
-        export DREGS_AUTH_TOKEN=eyJ...
-
-    \b
-      Embedded replica (local cache + cloud sync, recommended):
-        export DREGS_DSN=$XDG_DATA_HOME/dregs/dregs.db
-        export DREGS_SYNC_URL=libsql://your-db.turso.io
-        export DREGS_AUTH_TOKEN=eyJ...
-
-    \b
-    The embedded replica keeps a local SQLite file that syncs from
-    Turso Cloud on connect. Reads hit the local file (~10x faster);
-    writes go through the cloud. The default XDG location is
-    ~/.local/share/dregs/dregs.db.
+    Multiple domains = multiple databases:
+      DREGS_DSN=meetings.db dregs init --ontology meetings.ttl --shacl meetings-shapes.ttl
+      DREGS_DSN=finance.db dregs init --ontology finance.ttl --shacl finance-shapes.ttl
 
     \b
     Environment variables:
-      DREGS_DSN         Database file path or libsql:// URL (replaces --db).
-      DREGS_SYNC_URL    Turso cloud URL. When set with a file-path DSN,
-                        activates embedded replica mode (local cache + sync).
-      DREGS_AUTH_TOKEN   Auth token for Turso Cloud (remote and replica modes).
-      DREGS_VIZ_URL     Base URL printed by `dregs viz`. Use {port}
-                        as placeholder, e.g. https://myhost.example:{port}
+      DREGS_DSN         Database file path or libsql:// URL.
+      DREGS_SYNC_URL    Turso cloud URL for embedded replica mode.
+      DREGS_AUTH_TOKEN   Auth token for Turso Cloud.
+      DREGS_VIZ_URL     Base URL for viz. Use {port} as placeholder.
     """
     pass
 
 
 @cli.command()
-@click.option("--db", "-d", type=click.Path(path_type=Path), default=None, help="Path or URL to database (or set DREGS_DSN).")
-@click.option("--schema", "-s", type=click.Path(exists=True, path_type=Path), help="OWL ontology file (.ttl)")
+@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
+@click.option("--ontology", type=click.Path(exists=True, path_type=Path), help="OWL ontology file (.ttl)")
 @click.option("--shacl", type=click.Path(exists=True, path_type=Path), help="SHACL shapes file (.ttl)")
-@click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
-def init(db: Path | None, schema: Path | None, shacl: Path | None, as_json: bool):
-    """Initialize a new triple store database."""
+@click.option("--json", "as_json", is_flag=True)
+def init(db: Path | None, ontology: Path | None, shacl: Path | None, as_json: bool):
+    """Initialize a new triple store database.
+
+    System ontology and shapes are loaded automatically.
+    """
     store = _open_store(db)
     try:
-        result = store.init(schema_path=schema, shacl_path=shacl)
+        result = store.init(ontology_path=ontology, shacl_path=shacl)
         if as_json:
             click.echo(json.dumps(result, indent=2))
         else:
             click.echo(f"Initialized {db or store._dsn}")
-            if result["schema_triples"]:
-                click.echo(f"  Schema: {result['schema_triples']} triples")
-            if result["shacl_triples"]:
-                click.echo(f"  SHACL:  {result['shacl_triples']} triples")
+            click.echo(f"  System ontology: {result['system_ontology_triples']} triples")
+            click.echo(f"  User ontology:   {result['user_ontology_triples']} triples")
+            click.echo(f"  System shapes:   {result['system_shacl_triples']} triples")
+            click.echo(f"  User shapes:     {result['user_shacl_triples']} triples")
     finally:
         store.close()
 
 
 @cli.command()
 @click.argument("data", type=click.Path(exists=True, path_type=Path))
-@click.option("--db", "-d", type=click.Path(path_type=Path), default=None, help="Path or URL to database (or set DREGS_DSN).")
-@click.option("--graph", "-g", default=None, help="Named graph label.")
-@click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
-def load(data: Path, db: Path | None, graph: str | None, as_json: bool):
-    """Load Turtle data into the store.
+@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+def load(data: Path, db: Path | None, as_json: bool):
+    """Load Turtle data into the default graph.
 
-    Always validates against stored schema/SHACL. Rejects invalid data.
-
-    \b
-    DATA  Turtle file (.ttl) to load
+    Validates against ontology and SHACL shapes. Rejects invalid data.
     """
     store = _open_store(db)
     try:
-        result = store.load(data, graph_name=graph)
+        result = store.load(data)
 
         if not result["loaded"]:
-            # Validation failed
             vr: ValidationResult = result["validation"]
             if as_json:
                 click.echo(json.dumps(vr.to_dict(), indent=2))
@@ -143,10 +125,9 @@ def load(data: Path, db: Path | None, graph: str | None, as_json: bool):
                 click.echo(json.dumps({
                     "loaded": True,
                     "triple_count": result["triple_count"],
-                    "graph": result["graph"],
                 }, indent=2))
             else:
-                click.echo(f"Loaded {result['triple_count']} triples into graph '{result['graph']}'")
+                click.echo(f"Loaded {result['triple_count']} triples")
     finally:
         store.close()
 
@@ -154,44 +135,29 @@ def load(data: Path, db: Path | None, graph: str | None, as_json: bool):
 @cli.command()
 @click.argument("source", type=click.Path(exists=True, path_type=Path))
 @click.argument("data", type=click.Path(exists=True, path_type=Path))
-@click.option("--shacl", "-s", type=click.Path(exists=True, path_type=Path), help="SHACL shapes file.")
-@click.option("--regime", "-r", type=click.Choice(["owlrl", "rdfs", "both"]), default="owlrl", help="Reasoning regime.")
-@click.option("--require-provenance", "-p", is_flag=True, help="Require prov:wasDerivedFrom.")
-@click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
-def check(
-    source: Path,
-    data: Path,
-    shacl: Path | None,
-    regime: str,
-    require_provenance: bool,
-    as_json: bool,
-):
+@click.option("--shacl", "-s", type=click.Path(exists=True, path_type=Path))
+@click.option("--regime", "-r", type=click.Choice(["owlrl", "rdfs", "both"]), default="owlrl")
+@click.option("--require-provenance", "-p", is_flag=True)
+@click.option("--json", "as_json", is_flag=True)
+def check(source: Path, data: Path, shacl: Path | None, regime: str, require_provenance: bool, as_json: bool):
     """Validate RDF data against an ontology or dregs database.
 
     \b
-    Two modes:
-      dregs check my.db data.ttl           Validate against DB's schema/SHACL
-      dregs check ontology.ttl data.ttl    Standalone validation (no DB)
-
-    \b
-    SOURCE  dregs database (.db/.sqlite) or OWL ontology (.ttl)
+    SOURCE  dregs database or OWL ontology (.ttl)
     DATA    Turtle file to validate
     """
-    # Detect mode: is SOURCE a database or a TTL file?
     if _is_sqlite(source):
-        # DB mode
         store = DregsStore(source)
         try:
             conn = store._connect()
-            schema_graph = store._load_graphs_by_type(conn, "schema")
+            schema_graph = store._load_graph(conn, "urn:ontology")
 
-            # --shacl flag overrides DB shapes; fall back to DB shapes
             from rdflib import Graph
             if shacl:
                 shacl_graph = Graph()
                 shacl_graph.parse(str(shacl), format="turtle")
             else:
-                shacl_graph = store._load_graphs_by_type(conn, "shacl")
+                shacl_graph = store._load_graph(conn, "urn:shacl")
 
             data_graph = Graph()
             data_graph.parse(str(data), format="turtle")
@@ -207,7 +173,6 @@ def check(
         finally:
             store.close()
     else:
-        # Standalone mode
         result = validate_files(
             ontology_path=source,
             data_path=data,
@@ -226,20 +191,15 @@ def check(
 
 @cli.command()
 @click.argument("sparql", type=str)
-@click.option("--db", "-d", type=click.Path(path_type=Path), default=None, help="Path or URL to database (or set DREGS_DSN).")
-@click.option("--format", "-f", "fmt", type=click.Choice(["table", "json", "turtle"]), default="table", help="Output format.")
-@click.option("--graph", "-g", default=None, help="Query specific named graph only.")
-def query(sparql: str, db: Path | None, fmt: str, graph: str | None):
-    """Execute a SPARQL query against the store.
-
-    \b
-    SPARQL  SPARQL query string
-    """
+@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
+@click.option("--format", "-f", "fmt", type=click.Choice(["table", "json", "turtle"]), default="table")
+def query(sparql: str, db: Path | None, fmt: str):
+    """Execute a SPARQL query against the store."""
     from dregs.sparql import execute_sparql
 
     store = _open_store(db)
     try:
-        result = execute_sparql(store, sparql, graph_uri=graph, format=fmt)
+        result = execute_sparql(store, sparql, format=fmt)
 
         if fmt == "json":
             click.echo(json.dumps(result.to_dict(), indent=2))
@@ -255,60 +215,55 @@ def query(sparql: str, db: Path | None, fmt: str, graph: str | None):
 
 
 @cli.command()
-@click.option("--db", "-d", type=click.Path(path_type=Path), default=None, help="Path or URL to database (or set DREGS_DSN).")
-@click.option("--type", "-t", "graph_type", type=click.Choice(["schema", "shacl", "data", "all"]), required=True, help="Type of graph to export.")
-@click.option("--graph", "-g", default=None, help="Export specific named graph.")
-def export(db: Path | None, graph_type: str, graph: str | None):
-    """Export graphs from the store as Turtle."""
+@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
+@click.option("--what", "-w", type=click.Choice(["data", "ontology", "shacl", "all"]), default="data")
+def export(db: Path | None, what: str):
+    """Export graphs as Turtle.
+
+    \b
+    --what data      Export user data (default graph)
+    --what ontology  Export user ontology only (no system)
+    --what shacl     Export user shapes only (no system)
+    --what all       Export everything
+    """
     store = _open_store(db)
     try:
-        if graph:
-            click.echo(store.export_graph(graph))
-        elif graph_type == "all":
-            # Export everything
-            from rdflib import Graph as RGraph, Namespace
-            g = store.load_all_graphs()
-            for prefix, ns in store.get_prefixes().items():
-                g.bind(prefix, Namespace(ns))
-            click.echo(g.serialize(format="turtle"))
-        else:
-            click.echo(store.export_by_type(graph_type))
+        click.echo(store.export(what))
     finally:
         store.close()
 
 
 @cli.command()
 @click.argument("source", type=click.Path(exists=True, path_type=Path), required=False, default=None)
-@click.option("--db", "-d", default=None, help="Path or URL to database (or set DREGS_DSN).")
-def prompt(source: Path | None, db: str | None):
+@click.option("--db", "-d", default=None)
+@click.option("--domain", default=None, help="Filter prompt to a named domain.")
+def prompt(source: Path | None, db: str | None, domain: str | None):
     """Generate LLM extraction prompt context from ontology.
 
     \b
     Three modes:
       dregs prompt                  Use --db or DREGS_DSN
-      dregs prompt my.db            Extract from DB's schema graph
+      dregs prompt my.db            Extract from DB's ontology
       dregs prompt ontology.ttl     Standalone from file
 
     \b
-    SOURCE  dregs database or OWL ontology file (optional if --db / DREGS_DSN set)
+    --domain filters to classes in a named domain.
     """
     from dregs.prompt import prompt_from_file, prompt_from_store
 
     if source is not None and not _is_sqlite(source):
-        # Standalone file mode
         click.echo(prompt_from_file(source))
     else:
-        # DB mode: use explicit source, --db, or DREGS_DSN
         store = DregsStore(source or db)
         try:
-            click.echo(prompt_from_store(store))
+            click.echo(prompt_from_store(store, domain=domain))
         finally:
             store.close()
 
 
 @cli.command()
-@click.option("--db", "-d", type=click.Path(path_type=Path), default=None, help="Path or URL to database (or set DREGS_DSN).")
-@click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
+@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
 def info(db: Path | None, as_json: bool):
     """Show database statistics."""
     store = _open_store(db)
@@ -317,80 +272,120 @@ def info(db: Path | None, as_json: bool):
         if as_json:
             click.echo(json.dumps(s, indent=2))
         else:
-            click.echo(f"Database: {db or store._dsn}")
-            click.echo(f"Version:  {s['version']}")
-            click.echo(f"Created:  {s['created_at']}")
-            click.echo(f"Triples:  {s['total_triples']}")
-            click.echo(f"Graphs:   {s['graph_count']}")
-            for gtype, counts in s["by_type"].items():
-                click.echo(f"  {gtype}: {counts['graphs']} graphs, {counts['triples']} triples")
+            click.echo(f"Database:  {db or store._dsn}")
+            click.echo(f"Version:   {s['version']}")
+            click.echo(f"Created:   {s['created_at']}")
+            click.echo(f"Data:      {s['data_triples']} triples")
+            click.echo(f"Ontology:  {s['ontology_triples']} triples")
+            click.echo(f"SHACL:     {s['shacl_triples']} triples")
+            click.echo(f"Domains:   {s['domains']}")
+            click.echo(f"Topics:    {s['topics']}")
     finally:
         store.close()
 
 
 @cli.command()
-@click.option("--db", "-d", type=click.Path(path_type=Path), default=None, help="Path or URL to database (or set DREGS_DSN).")
-@click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
-def graphs(db: Path | None, as_json: bool):
-    """List all named graphs in the store."""
+@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+def domains(db: Path | None, as_json: bool):
+    """List all domains."""
     store = _open_store(db)
     try:
-        graph_list = store.list_graphs()
+        domain_list = store.list_domains()
         if as_json:
-            click.echo(json.dumps([{
-                "uri": g.uri, "label": g.label, "type": g.graph_type,
-                "source": g.source_file, "triples": g.triple_count,
-            } for g in graph_list], indent=2))
+            click.echo(json.dumps(domain_list, indent=2))
         else:
-            if not graph_list:
-                click.echo("(no graphs)")
+            if not domain_list:
+                click.echo("(no domains)")
             else:
-                for g in graph_list:
-                    click.echo(f"  {g.uri}  [{g.graph_type}]  {g.triple_count} triples  ({g.label})")
+                for d in domain_list:
+                    click.echo(f"  {d['slug']:<20} {len(d['classes'])} classes  \"{d['name']}\"")
     finally:
         store.close()
 
 
-@cli.command()
-@click.option("--db", "-d", type=click.Path(path_type=Path), default=None, help="Path or URL to database (or set DREGS_DSN).")
-@click.option("--graph", "-g", required=True, help="Graph URI to drop.")
-@click.option("--yes", "-y", is_flag=True, help="Skip confirmation.")
-@click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
-def drop(db: Path | None, graph: str, yes: bool, as_json: bool):
-    """Delete a named graph and all its triples."""
-    if not yes:
-        click.confirm(f"Drop graph '{graph}' and all its triples?", abort=True)
-
+@cli.command("create-domain")
+@click.argument("slug")
+@click.option("--name", "-n", required=True)
+@click.option("--class", "-c", "classes", multiple=True, required=True, help="Class URI (repeatable)")
+@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
+def create_domain(slug: str, name: str, classes: tuple[str, ...], db: Path | None):
+    """Create a domain (ontology class grouping for scoped prompts)."""
     store = _open_store(db)
     try:
-        count = store.drop_graph(graph)
-        if as_json:
-            click.echo(json.dumps({"dropped": graph, "triples_deleted": count}))
-        else:
-            click.echo(f"Dropped '{graph}': {count} triples deleted")
+        store.create_domain(slug, name, list(classes))
+        click.echo(f"Created domain '{slug}' with {len(classes)} classes")
     finally:
         store.close()
 
 
 @cli.command()
-@click.option("--db", "-d", type=click.Path(path_type=Path), default=None, help="Path or URL to database (or set DREGS_DSN).")
-@click.option("--port", "-p", type=int, default=7171, help="Port to serve on.")
-@click.option("--graph", "-g", default=None, help="Visualize specific named graph only.")
-@click.option("--no-open", is_flag=True, help="Don't auto-open browser.")
-def viz(db: Path | None, port: int, graph: str | None, no_open: bool):
-    """Launch interactive knowledge graph visualizer.
+@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+def topics(db: Path | None, as_json: bool):
+    """List all topics."""
+    store = _open_store(db)
+    try:
+        topic_list = store.list_topics()
+        if as_json:
+            click.echo(json.dumps(topic_list, indent=2))
+        else:
+            if not topic_list:
+                click.echo("(no topics)")
+            else:
+                for t in topic_list:
+                    click.echo(f"  {t['slug']:<20} {len(t['members'])} members  \"{t['name']}\"")
+    finally:
+        store.close()
 
-    Opens a force-directed graph in your browser showing all entities
-    and their relationships. Hover to highlight connections, click for
-    details, search to filter, drag to rearrange.
 
-    \b
-    Keys:
-      /       Focus search
-      Escape  Clear search & info panel
-      Scroll  Zoom in/out
-      Drag    Pan (background) or move node
-    """
+@cli.command("create-topic")
+@click.argument("slug")
+@click.option("--name", "-n", required=True)
+@click.option("--member", "-m", "members", multiple=True, required=True, help="Member URI (repeatable)")
+@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
+def create_topic(slug: str, name: str, members: tuple[str, ...], db: Path | None):
+    """Create a topic (data entity grouping)."""
+    store = _open_store(db)
+    try:
+        store.create_topic(slug, name, list(members))
+        click.echo(f"Created topic '{slug}' with {len(members)} members")
+    finally:
+        store.close()
+
+
+@cli.command("update-ontology")
+@click.argument("ontology", type=click.Path(exists=True, path_type=Path))
+@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
+def update_ontology(ontology: Path, db: Path | None):
+    """Replace user ontology. System ontology is protected."""
+    store = _open_store(db)
+    try:
+        count = store.update_ontology(ontology)
+        click.echo(f"Updated user ontology: {count} triples")
+    finally:
+        store.close()
+
+
+@cli.command("update-shacl")
+@click.argument("shacl", type=click.Path(exists=True, path_type=Path))
+@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
+def update_shacl(shacl: Path, db: Path | None):
+    """Replace user SHACL shapes. System shapes are protected."""
+    store = _open_store(db)
+    try:
+        count = store.update_shacl(shacl)
+        click.echo(f"Updated user shapes: {count} triples")
+    finally:
+        store.close()
+
+
+@cli.command()
+@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
+@click.option("--port", "-p", type=int, default=7171)
+@click.option("--no-open", is_flag=True)
+def viz(db: Path | None, port: int, no_open: bool):
+    """Launch interactive knowledge graph visualizer."""
     from dregs.viz import serve_viz
 
     import os
@@ -399,7 +394,7 @@ def viz(db: Path | None, port: int, graph: str | None, no_open: bool):
         base_url = base_url.replace("{port}", str(port))
     store = _open_store(db)
     try:
-        serve_viz(store, port=port, graph_uri=graph, open_browser=not no_open, base_url=base_url)
+        serve_viz(store, port=port, open_browser=not no_open, base_url=base_url)
     finally:
         store.close()
 
@@ -409,49 +404,16 @@ def viz(db: Path | None, port: int, graph: str | None, no_open: bool):
     "label-community", "label-node", "highlight-nodes",
     "highlight-community", "toast", "clear",
 ]))
-@click.option("--port", "-p", type=int, default=7171, help="Viz server port.")
-@click.option("--text", "-t", default=None, help="Annotation text.")
-@click.option("--community", "-c", type=int, default=None, help="Community ID.")
-@click.option("--node", "-n", multiple=True, help="Node ID or label (repeatable).")
-@click.option("--color", default=None, help="Color (hex).")
-@click.option("--duration", type=int, default=5, help="Toast duration (seconds).")
-@click.option("--neighbors/--no-neighbors", default=False, help="Show neighbors when highlighting.")
-@click.option("--host", default="localhost", help="Viz server host.")
-def annotate(
-    annotation_type: str,
-    port: int,
-    text: str | None,
-    community: int | None,
-    node: tuple[str, ...],
-    color: str | None,
-    duration: int,
-    neighbors: bool,
-    host: str,
-):
-    """Send annotations to a running dregs viz server.
-
-    The viz server receives annotations via SSE and renders them
-    in real-time on the graph. Use this to narrate, highlight,
-    and annotate the graph from scripts or agents.
-
-    \b
-    Annotation types:
-      label-community      Add text label at community centroid
-      label-node           Add text callout above a node
-      highlight-nodes      Highlight specific nodes, dim others
-      highlight-community  Highlight a community, dim others
-      toast                Show a centered message overlay
-      clear                Remove all annotations, reset view
-
-    \b
-    Examples:
-      dregs annotate toast -t "Welcome to the NRC knowledge graph"
-      dregs annotate label-community -c 0 -t "Commissioners"
-      dregs annotate highlight-nodes -n "Bradley R. Crowell" -n "Annie Caputo"
-      dregs annotate highlight-community -c 2
-      dregs annotate label-node -n "Affirmation Session" -t "Bridge node (BC=0.37)"
-      dregs annotate clear
-    """
+@click.option("--port", "-p", type=int, default=7171)
+@click.option("--text", "-t", default=None)
+@click.option("--community", "-c", type=int, default=None)
+@click.option("--node", "-n", multiple=True)
+@click.option("--color", default=None)
+@click.option("--duration", type=int, default=5)
+@click.option("--neighbors/--no-neighbors", default=False)
+@click.option("--host", default="localhost")
+def annotate(annotation_type, port, text, community, node, color, duration, neighbors, host):
+    """Send annotations to a running dregs viz server."""
     import urllib.request
     import urllib.error
 

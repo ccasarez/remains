@@ -8,6 +8,7 @@ from rdflib import OWL, RDF, RDFS, Graph, Namespace, URIRef
 from rdflib.term import Node
 
 SKOS = Namespace("http://www.w3.org/2004/02/skos/core#")
+SYSTEM_NS = "urn:dregs:system#"
 
 
 def _short(uri: Node) -> str:
@@ -17,97 +18,29 @@ def _short(uri: Node) -> str:
     return s.split("/")[-1]
 
 
-def generate_prompt_context(g: Graph) -> str:
-    """Generate structured prompt context from an OWL ontology graph.
-
-    Lists all classes, properties, and skos:example annotations.
-    Feed this to an LLM to schema-lock extraction output.
-    """
-    lines = ["# Ontology Schema for Extraction", ""]
-    lines.append("Extract ONLY the following entity types and relationships.")
-    lines.append("Do NOT invent new types. Output as Turtle (TTL) format.")
-    lines.append("")
-
-    # Classes
-    lines.append("## Entity Types")
-    for cls in sorted(g.subjects(RDF.type, OWL.Class)):
-        if not isinstance(cls, URIRef):
-            continue
-        label = g.value(cls, RDFS.label) or _short(cls)
-        comment = g.value(cls, RDFS.comment) or ""
-        parent = g.value(cls, RDFS.subClassOf)
-        parent_str = f" (subclass of {_short(parent)})" if parent else ""
-
-        lines.append(f"### {label}{parent_str}")
-        if comment:
-            lines.append(f"  Definition: {comment}")
-
-        for ex in g.objects(cls, SKOS.example):
-            lines.append(f"  {ex}")
-        lines.append("")
-
-    # Object Properties
-    lines.append("## Relationships (Object Properties)")
-    for prop in sorted(g.subjects(RDF.type, OWL.ObjectProperty)):
-        if not isinstance(prop, URIRef):
-            continue
-        label = g.value(prop, RDFS.label) or _short(prop)
-        domain = g.value(prop, RDFS.domain)
-        range_ = g.value(prop, RDFS.range)
-        d_str = _short(domain) if domain else "?"
-        r_str = _short(range_) if range_ else "?"
-        lines.append(f"- {label}: {d_str} -> {r_str}")
-
-    lines.append("")
-
-    # Data Properties
-    lines.append("## Data Properties")
-    for prop in sorted(g.subjects(RDF.type, OWL.DatatypeProperty)):
-        if not isinstance(prop, URIRef):
-            continue
-        label = g.value(prop, RDFS.label) or _short(prop)
-        domain = g.value(prop, RDFS.domain)
-        range_ = g.value(prop, RDFS.range)
-        d_str = _short(domain) if domain else "?"
-        r_str = _short(range_) if range_ else "?"
-        lines.append(f"- {label}: {d_str} -> {r_str}")
-
-    return "\n".join(lines)
-
-
 def prompt_from_file(ontology_path: Path) -> str:
     """Generate prompt context from an ontology file."""
     g = Graph()
     g.parse(str(ontology_path), format="turtle")
-    return generate_prompt_context(g)
+    return _generate_prompt(g)
 
 
-def prompt_from_store(store) -> str:
-    """Generate prompt context from a dregs store's schema graph."""
-    g = store._load_graphs_by_type(store._connect(), "schema")
-    return generate_prompt_context(g)
-
-
-def prompt_from_store_v2(store, domain: Optional[str] = None) -> str:
-    """Generate prompt context from v2 store's urn:ontology graph.
+def prompt_from_store(store, domain: Optional[str] = None) -> str:
+    """Generate prompt context from a dregs store's urn:ontology graph.
 
     If domain is specified, only include classes in that domain
     and properties relevant to those classes.
     """
-    g = store._load_graph_rdflib(store._connect(), "urn:ontology")
+    g = store.load_ontology_graph()
 
     if domain:
         return _generate_domain_prompt(g, domain)
     else:
-        return _generate_filtered_prompt(g)
+        return _generate_prompt(g)
 
 
-def _generate_filtered_prompt(g: Graph) -> str:
+def _generate_prompt(g: Graph) -> str:
     """Generate prompt excluding system classes (dregs:Topic, dregs:Domain, etc.)."""
-    from rdflib import OWL, RDF, RDFS
-
-    SYSTEM_NS = "urn:dregs:system#"
-
     lines = ["# Ontology Schema for Extraction", ""]
     lines.append("Extract ONLY the following entity types and relationships.")
     lines.append("Do NOT invent new types. Output as Turtle (TTL) format.")
@@ -168,12 +101,8 @@ def _generate_filtered_prompt(g: Graph) -> str:
 
 def _generate_domain_prompt(g: Graph, domain: str) -> str:
     """Generate prompt filtered to classes in a specific domain."""
-    from rdflib import OWL, RDF, RDFS
-
-    SYSTEM_NS = "urn:dregs:system#"
     domain_uri = URIRef(f"urn:dregs:domain#{domain}")
 
-    # Get classes in this domain
     domain_classes: set[URIRef] = set()
     for cls in g.objects(domain_uri, URIRef(f"{SYSTEM_NS}includesClass")):
         if isinstance(cls, URIRef):
@@ -212,7 +141,6 @@ def _generate_domain_prompt(g: Graph, domain: str) -> str:
             continue
         domain_cls = g.value(prop, RDFS.domain)
         range_cls = g.value(prop, RDFS.range)
-        # Include if domain or range is in domain_classes
         if domain_cls in domain_classes or range_cls in domain_classes:
             label = g.value(prop, RDFS.label) or _short(prop)
             d_str = _short(domain_cls) if domain_cls else "?"
