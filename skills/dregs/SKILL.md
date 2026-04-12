@@ -76,6 +76,115 @@ dregs export --type shacl    # Show validation shapes
 dregs export -g graph-name   # Export a specific graph as Turtle
 ```
 
+## Graph Visualization
+
+### Launch the visualizer
+
+```bash
+dregs viz                       # Opens browser on :7171
+dregs viz --port 8080           # Custom port
+dregs viz -g my-graph           # Specific named graph only
+dregs viz --no-open             # Headless (for remote/proxy access)
+```
+
+The visualizer shows an interactive force-directed graph with:
+- **Community detection** (Louvain) — nodes colored by topic cluster
+- **Betweenness centrality** — node size shows bridge importance
+- **Structural gap analysis** — identifies disconnected topic areas
+- **Analytics panel** (toggle with ◈ button) — modularity, bias score, influential nodes, gaps
+- **Topics sidebar** — click a topic to isolate it, click again to restore all
+
+### Annotate the graph (agent remote control)
+
+The agent can control the visualization in real-time. Annotations are sent via HTTP
+and rendered instantly in all connected browsers via Server-Sent Events.
+
+**Start the viz server first**, then use `dregs annotate`:
+
+```bash
+# Show a centered message overlay (auto-dismisses)
+dregs annotate toast -t "Analysis of Q1 meetings"
+
+# Label communities in the Topics sidebar
+dregs annotate label-community -c 0 -t "👥 Core Team"
+dregs annotate label-community -c 1 -t "📋 Project Alpha"
+dregs annotate label-community -c 2 -t "🔬 Research Papers"
+
+# Highlight specific nodes (by label or ID), dim everything else
+dregs annotate highlight-nodes -n "Alice" -n "Bob"
+dregs annotate highlight-nodes -n "Alice" --neighbors   # include neighbors
+
+# Highlight an entire community
+dregs annotate highlight-community -c 2
+
+# Add a callout label above a node
+dregs annotate label-node -n "Alice" -t "Bridge node (BC=0.37)"
+
+# Clear all annotations and reset the view
+dregs annotate clear
+```
+
+**Annotation types reference:**
+
+| Type | Required flags | What it does |
+|---|---|---|
+| `toast` | `-t TEXT` | Centered overlay message, auto-dismisses |
+| `label-community` | `-c ID -t TEXT` | Updates the community name in the Topics sidebar |
+| `label-node` | `-n NODE -t TEXT` | Callout text above a specific node |
+| `highlight-nodes` | `-n NODE` (repeatable) | Highlight named nodes, dim others |
+| `highlight-community` | `-c ID` | Highlight a community, dim others |
+| `clear` | (none) | Remove all annotations, restore full view |
+
+**Optional flags:** `--color "#hex"`, `--duration SECONDS` (toast), `--neighbors` (highlight-nodes).
+
+**How it works:** POST to `/api/annotate` with JSON. The viz server broadcasts via SSE
+to all connected browsers. Annotations are stored in server memory and replayed to
+new clients on connect. `clear` resets the history.
+
+```bash
+# Equivalent curl (for scripts or non-CLI agents):
+curl -X POST http://localhost:7171/api/annotate \
+  -H 'Content-Type: application/json' \
+  -d '{"type":"toast","text":"Hello from agent"}'
+```
+
+### Narration workflow (recommended pattern)
+
+When the user asks you to explain or present a knowledge graph:
+
+```bash
+# 1. Start the viz if not already running
+dregs viz --no-open --port 7171 &
+
+# 2. Get the analytics to understand the graph
+curl -s http://localhost:7171/api/analytics | python3 -m json.tool
+
+# 3. Label the communities based on their content
+dregs annotate label-community -c 0 -t "👥 Description of topic 0"
+dregs annotate label-community -c 1 -t "📋 Description of topic 1"
+# ... etc
+
+# 4. Walk through insights
+dregs annotate toast -t "Key finding: ..."
+dregs annotate highlight-nodes -n "Important Node" --neighbors
+sleep 3
+dregs annotate clear
+
+# 5. Point out structural gaps
+dregs annotate highlight-community -c 0
+dregs annotate toast -t "This cluster has no connection to Topic 2"
+```
+
+### API endpoints
+
+| Endpoint | Method | Returns |
+|---|---|---|
+| `/` | GET | Interactive graph HTML |
+| `/api/graph` | GET | Full graph data + analytics JSON |
+| `/api/analytics` | GET | Analytics only (communities, BC, gaps) |
+| `/api/events` | GET | SSE stream for live annotations |
+| `/api/annotate` | POST | Send annotation JSON, broadcasts to clients |
+
 ## Rules
 
 1. **Always query before answering** if the question might be in the store.
@@ -84,3 +193,5 @@ dregs export -g graph-name   # Export a specific graph as Turtle
 4. **Use descriptive graph names** (e.g., `meeting-2026-03-04`, `user-preferences`).
 5. **Validation is mandatory** — every load is validated against the schema. There is no bypass flag.
 6. **If the ontology doesn't cover a domain**, tell the user and offer to extend it.
+7. **When visualizing**, always label communities via `dregs annotate label-community` after launching `dregs viz` — the auto-generated labels are just top node names and need human-readable descriptions.
+8. **Annotations persist in server memory** — they replay to new browser clients. Use `dregs annotate clear` to reset.
