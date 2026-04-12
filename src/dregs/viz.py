@@ -335,7 +335,7 @@ svg { width: 100%; height: 100%; }
         <h2>Topics</h2>
         <div class="legend" id="legend"></div>
         <div class="btn-row">
-            <button class="btn active" data-action="toggle-analytics" title="Analytics panel">◈ Analytics</button>
+            <button class="btn" data-action="toggle-analytics" title="Analytics panel">◈ Analytics</button>
             <button class="btn" data-action="toggle-edges" title="Edge labels">↔ Edges</button>
             <button class="btn" data-action="toggle-gaps" title="Gap lines">⚡ Gaps</button>
             <button class="btn" data-action="cycle-sizing" title="Node sizing">● Size: BC</button>
@@ -822,13 +822,16 @@ searchInput.addEventListener('input', () => {
 const legendEl = document.getElementById('legend');
 const activeCommunities = new Set(communities.map(c => c.id));
 
+const legendItems = {};  // community id -> DOM element
+
 communities.forEach(c => {
     if (c.nodeCount === 0) return;
     const item = document.createElement('div');
     item.className = 'legend-item';
+    item.dataset.community = c.id;
     const topLabels = (c.topNodes || []).slice(0, 3).join(', ');
     item.innerHTML = `<span class="legend-dot" style="background:${c.color}"></span>
-        <span>${topLabels || 'Topic ' + c.id}</span>
+        <span class="legend-label">${topLabels || 'Topic ' + c.id}</span>
         <span class="legend-meta">${c.nodeCount}</span>`;
     item.addEventListener('click', () => {
         if (activeCommunities.has(c.id)) {
@@ -841,6 +844,7 @@ communities.forEach(c => {
         applyCommunityFilter();
     });
     legendEl.appendChild(item);
+    legendItems[c.id] = item;
 });
 
 function applyCommunityFilter() {
@@ -918,7 +922,7 @@ function buildAnalyticsPanel() {
     });
 }
 buildAnalyticsPanel();
-analyticsPanel.classList.add('visible');
+// Analytics panel starts hidden; toggled by button
 
 // ── BUTTON ACTIONS ──
 let sizingMode = 'bc'; // bc | degree | type
@@ -1138,34 +1142,26 @@ function applyAnnotation(ann) {
     const type = ann.type;
 
     if (type === 'label-community') {
-        // Add a text label at the centroid of a community
+        // Update the community label in the Topics legend
         const cid = ann.community;
-        const cNodes = nodes.filter(n => n.community === cid);
-        if (!cNodes.length) return;
-        const cx = cNodes.reduce((s,n)=>s+n.x,0)/cNodes.length;
-        const cy = cNodes.reduce((s,n)=>s+n.y,0)/cNodes.length;
-
-        const bg = document.createElementNS(ns, 'rect');
-        const text = document.createElementNS(ns, 'text');
-        text.setAttribute('x', cx); text.setAttribute('y', cy - 20);
-        text.setAttribute('text-anchor', 'middle');
-        text.setAttribute('fill', ann.color || communities[cid]?.color || '#fff');
-        text.setAttribute('font-size', '14');
-        text.setAttribute('font-weight', '600');
-        text.setAttribute('pointer-events', 'none');
-        text.setAttribute('class', 'annotation-text');
-        text.textContent = ann.text;
-        annotationLayer.appendChild(text);
-        annotationOverlays.push(text);
-
-        // Update position on each frame
-        text._update = () => {
-            const cnow = nodes.filter(n => n.community === cid);
-            if (!cnow.length) return;
-            const nx = cnow.reduce((s,n)=>s+n.x,0)/cnow.length;
-            const ny = cnow.reduce((s,n)=>s+n.y,0)/cnow.length;
-            text.setAttribute('x', nx); text.setAttribute('y', ny - 25);
-        };
+        const item = legendItems[cid];
+        if (item) {
+            const labelSpan = item.querySelector('.legend-label');
+            if (labelSpan) labelSpan.textContent = ann.text;
+        }
+        // Store original text for cleanup
+        annotationOverlays.push({
+            _isCommunityLabel: true,
+            _cid: cid,
+            remove: () => {
+                const it = legendItems[cid];
+                if (it) {
+                    const ls = it.querySelector('.legend-label');
+                    const c = communities[cid];
+                    if (ls && c) ls.textContent = (c.topNodes || []).slice(0, 3).join(', ') || 'Topic ' + cid;
+                }
+            }
+        });
     }
 
     else if (type === 'label-node') {
