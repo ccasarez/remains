@@ -1,0 +1,54 @@
+@prefix dregs: <urn:dregs:system#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+<urn:dregs:system> a owl:Ontology ;
+    rdfs:label "dregs System Ontology" .
+
+# --- Topic ---
+
+dregs:Topic a owl:Class ;
+    rdfs:label "Topic" ;
+    rdfs:comment "Thematic grouping of entities in the knowledge graph" .
+
+dregs:member a owl:ObjectProperty ;
+    rdfs:domain dregs:Topic ;
+    rdfs:label "member" ;
+    rdfs:comment "Entity belonging to this topic" .
+
+dregs:createdBy a owl:DatatypeProperty ;
+    rdfs:domain dregs:Topic ;
+    rdfs:range xsd:string ;
+    rdfs:label "createdBy" ;
+    rdfs:comment "Algorithm or user that created this topic" .
+
+dregs:modularity a owl:DatatypeProperty ;
+    rdfs:domain dregs:Topic ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "modularity" ;
+    rdfs:comment "Modularity score from community detection" .
+
+dregs:color a owl:DatatypeProperty ;
+    rdfs:domain dregs:Topic ;
+    rdfs:range xsd:string ;
+    rdfs:label "color" ;
+    rdfs:comment "Display color (hex)" .
+
+# --- Domain (ontology-level grouping for scoped LLM prompts) ---
+
+dregs:Domain a owl:Class ;
+    rdfs:label "Domain" ;
+    rdfs:comment "Named subset of ontology classes for scoped LLM extraction prompts" .
+
+dregs:includesClass a owl:ObjectProperty ;
+    rdfs:domain dregs:Domain ;
+    rdfs:range owl:Class ;
+    rdfs:label "includes class" ;
+    rdfs:comment "An ontology class included in this domain" .
+
+# --- Display Name Constraint ---
+
+dregs:RequiresDisplayName a rdfs:Class ;
+    rdfs:label "Requires Display Name" ;
+    rdfs:comment "Marker: instances must have rdfs:label, skos:prefLabel, or schema:name" .

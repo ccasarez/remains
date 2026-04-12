@@ -43,7 +43,7 @@ ex:PersonShape a sh:NodeShape ;
     sh:property [ sh:path ex:name ; sh:minCount 1 ; sh:datatype xsd:string ] .
 """)
 
-    store.init(schema_path=schema, shacl_path=shacl)
+    store.init(ontology_path=schema, shacl_path=shacl)
 
     data = tmp_path / "data.ttl"
     data.write_text("""
@@ -60,7 +60,7 @@ ex:projectX a ex:Project ; ex:name "Project X"^^xsd:string ; ex:fundedBy ex:acme
 ex:projectY a ex:Project ; ex:name "Project Y"^^xsd:string ; ex:fundedBy ex:acme .
 ex:projectZ a ex:Project ; ex:name "Project Z"^^xsd:string ; ex:fundedBy ex:globex .
 """)
-    result = store.load(data, graph_name="test-data")
+    result = store.load(data)
     assert result["loaded"]
 
     yield store

@@ -10,7 +10,7 @@ from typing import Optional
 from dregs.store import DregsStore
 
 
-def _build_graph_data(store: DregsStore, graph_uri: Optional[str] = None) -> dict:
+def _build_graph_data(store: DregsStore) -> dict:
     """Extract nodes and edges from the store, then compute analytics."""
     prefixes = store.get_prefixes()
 
@@ -42,7 +42,7 @@ def _build_graph_data(store: DregsStore, graph_uri: Optional[str] = None) -> dic
     }
     """
     from dregs.sparql import execute_sparql
-    result = execute_sparql(store, sparql, graph_uri=graph_uri, format="json")
+    result = execute_sparql(store, sparql, format="json")
 
     nodes_map = {}  # uri -> node data
     edges = []
@@ -56,7 +56,7 @@ def _build_graph_data(store: DregsStore, graph_uri: Optional[str] = None) -> dic
         { ?s ?nameProp ?name . FILTER(CONTAINS(STR(?nameProp), "name")) }
     }
     """
-    label_result = execute_sparql(store, label_sparql, graph_uri=graph_uri, format="json")
+    label_result = execute_sparql(store, label_sparql, format="json")
     labels = {}
     for row in label_result.bindings:
         s = row.get("s", "")
@@ -75,7 +75,7 @@ def _build_graph_data(store: DregsStore, graph_uri: Optional[str] = None) -> dic
         FILTER(!STRSTARTS(STR(?p), "http://www.w3.org/ns/prov#"))
     }
     """
-    props_result = execute_sparql(store, props_sparql, graph_uri=graph_uri, format="json")
+    props_result = execute_sparql(store, props_sparql, format="json")
     node_props: dict[str, dict[str, str]] = {}  # short_uri -> {prop_short: value}
     for row in props_result.bindings:
         s = row.get("s", "")
@@ -1453,13 +1453,12 @@ simulate();
 def serve_viz(
     store: DregsStore,
     port: int = 7171,
-    graph_uri: Optional[str] = None,
     open_browser: bool = True,
     base_url: Optional[str] = None,
     _prebuilt_data: Optional[dict] = None,
 ) -> None:
     """Build graph data and serve the interactive visualizer."""
-    data = _prebuilt_data or _build_graph_data(store, graph_uri)
+    data = _prebuilt_data or _build_graph_data(store)
     html = _HTML.replace("__GRAPH_DATA__", json.dumps(data))
 
     # Shared annotation state

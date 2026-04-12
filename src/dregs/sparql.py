@@ -12,19 +12,10 @@ from dregs.store import DregsStore
 def execute_sparql(
     store: DregsStore,
     sparql: str,
-    graph_uri: Optional[str] = None,
     format: str = "table",
 ) -> QueryResult:
-    """Execute SPARQL against the store.
-
-    If graph_uri is specified, query only that graph.
-    Otherwise, query the union of all graphs.
-    """
-    # Load appropriate graph(s)
-    if graph_uri:
-        g = store.load_graph(graph_uri)
-    else:
-        g = store.load_all_graphs()
+    """Execute SPARQL against the store (union of all graphs)."""
+    g = store.load_all_graphs()
 
     # Bind prefixes for nicer output
     prefixes = store.get_prefixes()

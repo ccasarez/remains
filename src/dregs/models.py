@@ -17,16 +17,6 @@ class Triple:
     graph: str = "urn:dregs:data"
 
 
-@dataclass
-class GraphInfo:
-    """Metadata about a named graph."""
-    uri: str
-    label: str
-    graph_type: str  # schema, shacl, data, inferred
-    source_file: Optional[str] = None
-    created_at: Optional[str] = None
-    triple_count: int = 0
-
 
 @dataclass
 class ValidationResult:
