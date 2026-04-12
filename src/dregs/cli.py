@@ -228,28 +228,32 @@ def export(db: Path | None, graph_type: str, graph: str | None):
 
 
 @cli.command()
-@click.argument("source", type=click.Path(exists=True, path_type=Path))
-def prompt(source: Path):
+@click.argument("source", type=click.Path(exists=True, path_type=Path), required=False, default=None)
+@click.option("--db", "-d", default=None, help="Path or URL to database (or set DREGS_DSN).")
+def prompt(source: Path | None, db: str | None):
     """Generate LLM extraction prompt context from ontology.
 
     \b
-    Two modes:
+    Three modes:
+      dregs prompt                  Use --db or DREGS_DSN
       dregs prompt my.db            Extract from DB's schema graph
       dregs prompt ontology.ttl     Standalone from file
 
     \b
-    SOURCE  dregs database or OWL ontology file
+    SOURCE  dregs database or OWL ontology file (optional if --db / DREGS_DSN set)
     """
     from dregs.prompt import prompt_from_file, prompt_from_store
 
-    if _is_sqlite(source):
-        store = DregsStore(source)
+    if source is not None and not _is_sqlite(source):
+        # Standalone file mode
+        click.echo(prompt_from_file(source))
+    else:
+        # DB mode: use explicit source, --db, or DREGS_DSN
+        store = DregsStore(source or db)
         try:
             click.echo(prompt_from_store(store))
         finally:
             store.close()
-    else:
-        click.echo(prompt_from_file(source))
 
 
 @cli.command()
