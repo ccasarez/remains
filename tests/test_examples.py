@@ -98,9 +98,11 @@ class TestStoreLifecycle:
         assert result["loaded"] is False
         assert result["validation"].conforms is False
 
-    def test_load_no_validate(self, store, example):
-        result = store.load(example["bad_data"], graph_name="raw", validate=False)
-        assert result["loaded"] is True
+    def test_load_always_validates(self, store, example):
+        """Bad data is always rejected — there is no way to bypass validation."""
+        result = store.load(example["bad_data"], graph_name="raw")
+        assert result["loaded"] is False
+        assert result["validation"].conforms is False
 
 
 # ── SPARQL queries ───────────────────────────────────────────────────

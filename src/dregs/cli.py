@@ -66,19 +66,18 @@ def init(db: Path | None, schema: Path | None, shacl: Path | None, as_json: bool
 @click.argument("data", type=click.Path(exists=True, path_type=Path))
 @click.option("--db", "-d", type=click.Path(path_type=Path), default=None, help="Path or URL to database (or set DREGS_DSN).")
 @click.option("--graph", "-g", default=None, help="Named graph label.")
-@click.option("--no-validate", is_flag=True, help="Skip validation.")
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
-def load(data: Path, db: Path | None, graph: str | None, no_validate: bool, as_json: bool):
+def load(data: Path, db: Path | None, graph: str | None, as_json: bool):
     """Load Turtle data into the store.
 
-    Validates against stored schema/SHACL by default. Rejects invalid data.
+    Always validates against stored schema/SHACL. Rejects invalid data.
 
     \b
     DATA  Turtle file (.ttl) to load
     """
     store = DregsStore(db)
     try:
-        result = store.load(data, graph_name=graph, validate=not no_validate)
+        result = store.load(data, graph_name=graph)
 
         if not result["loaded"]:
             # Validation failed

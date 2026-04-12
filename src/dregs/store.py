@@ -302,34 +302,32 @@ class DregsStore:
         self,
         data_path: Path,
         graph_name: Optional[str] = None,
-        validate: bool = True,
     ) -> dict:
-        """Load Turtle data into the store. Validates against schema/SHACL by default."""
+        """Load Turtle data into the store. Always validates against schema/SHACL."""
         conn = self._connect()
 
         # Parse input data
         data_graph = Graph()
         data_graph.parse(str(data_path), format="turtle")
 
-        if validate:
-            # Pull schema and shacl from DB
-            schema_graph = self._load_graphs_by_type(conn, "schema")
-            shacl_graph = self._load_graphs_by_type(conn, "shacl")
+        # Pull schema and shacl from DB
+        schema_graph = self._load_graphs_by_type(conn, "schema")
+        shacl_graph = self._load_graphs_by_type(conn, "shacl")
 
-            if len(schema_graph) == 0:
-                raise ValueError("No schema loaded. Run 'dregs init --schema' first.")
+        if len(schema_graph) == 0:
+            raise ValueError("No schema loaded. Run 'dregs init --schema' first.")
 
-            result = run_validation(
-                schema_graph=schema_graph,
-                data_graph=data_graph,
-                shacl_graph=shacl_graph if len(shacl_graph) > 0 else None,
-            )
+        result = run_validation(
+            schema_graph=schema_graph,
+            data_graph=data_graph,
+            shacl_graph=shacl_graph if len(shacl_graph) > 0 else None,
+        )
 
-            if not result.conforms:
-                return {
-                    "loaded": False,
-                    "validation": result,
-                }
+        if not result.conforms:
+            return {
+                "loaded": False,
+                "validation": result,
+            }
 
         # Determine graph URI
         graph_uri = graph_name or f"file:{data_path.name}"

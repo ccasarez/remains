@@ -167,17 +167,17 @@ class TestRemoteLoad:
         assert len(result["validation"].shacl_violations) > 0
         store.close()
 
-    def test_load_no_validate(self):
+    def test_load_always_validates(self):
+        """Bad data is always rejected — there is no way to bypass validation."""
         from dregs.store import DregsStore
 
         store = DregsStore()
         result = store.load(
             EXAMPLES_ROOT / "data_bad.ttl",
             graph_name="forced",
-            validate=False,
         )
-        assert result["loaded"] is True
-        assert result["triple_count"] > 0
+        assert result["loaded"] is False
+        assert result["validation"].conforms is False
         store.close()
 
 

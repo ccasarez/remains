@@ -82,5 +82,5 @@ dregs export -g graph-name   # Export a specific graph as Turtle
 2. **Always record** when the user provides structured facts or asks you to remember.
 3. **Always discover the schema first** (`dregs prompt`) before writing triples — never hardcode class/property names from memory.
 4. **Use descriptive graph names** (e.g., `meeting-2026-03-04`, `user-preferences`).
-5. **Validate against the schema** — don't use `--no-validate` unless extending the ontology.
+5. **Validation is mandatory** — every load is validated against the schema. There is no bypass flag.
 6. **If the ontology doesn't cover a domain**, tell the user and offer to extend it.
