@@ -1,4 +1,4 @@
-"""Tests for dregs v2: 3 fixed graphs, system/user split, topics, domains."""
+"""Tests for dregs: 3 fixed graphs, system/user split, topics, domains."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -21,7 +21,7 @@ EX = Namespace("http://example.com/ontology#")
 # ---------------------------------------------------------------------------
 
 
-class TestInitV2:
+class TestInit:
     """dregs init creates 3-graph structure with system + user ontology/shapes."""
 
     def test_init_creates_three_graphs(self, tmp_path):
@@ -120,7 +120,7 @@ class TestInitV2:
         db.close()
 
 
-class TestLoadV2:
+class TestLoad:
     """Loading data goes into default graph only."""
 
     @pytest.fixture
@@ -162,7 +162,7 @@ class TestLoadV2:
         assert graph_names <= {"", "urn:ontology", "urn:shacl"}
 
 
-class TestPromptV2:
+class TestPrompt:
     """dregs prompt generates from urn:ontology graph."""
 
     @pytest.fixture
@@ -282,7 +282,7 @@ dregs-sh:TopicShape sh:deactivated true .
             store.update_shacl(evil)
 
 
-class TestExportV2:
+class TestExport:
     """Export with new flags."""
 
     @pytest.fixture
@@ -319,7 +319,7 @@ class TestExportV2:
         assert len(g) > 0
 
 
-class TestInfoV2:
+class TestInfo:
     """Info command shows system/user split."""
 
     @pytest.fixture
