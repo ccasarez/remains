@@ -264,6 +264,70 @@ class TestServeViz:
         assert "analytics" in data
         assert len(data["nodes"]) > 0
 
+    def test_post_annotate(self, loaded_store):
+        """POST /api/annotate accepts annotations and returns ok."""
+        port = 17174
+        prebuilt = _build_graph_data(loaded_store)
+        server_thread = threading.Thread(
+            target=serve_viz, args=(loaded_store,),
+            kwargs={"port": port, "open_browser": False, "_prebuilt_data": prebuilt},
+            daemon=True,
+        )
+        server_thread.start()
+        time.sleep(1)
+
+        annotation = json.dumps({"type": "toast", "text": "Hello"}).encode()
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api/annotate",
+            data=annotation,
+            headers={"Content-Type": "application/json"},
+        )
+        resp = urllib.request.urlopen(req)
+        result = json.loads(resp.read())
+        assert result["ok"] is True
+
+    def test_post_annotate_bad_json(self, loaded_store):
+        """POST /api/annotate rejects invalid JSON."""
+        port = 17175
+        prebuilt = _build_graph_data(loaded_store)
+        server_thread = threading.Thread(
+            target=serve_viz, args=(loaded_store,),
+            kwargs={"port": port, "open_browser": False, "_prebuilt_data": prebuilt},
+            daemon=True,
+        )
+        server_thread.start()
+        time.sleep(1)
+
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api/annotate",
+            data=b"not json",
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            urllib.request.urlopen(req)
+            assert False, "Should have raised"
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
+
+    def test_sse_endpoint_connects(self, loaded_store):
+        """GET /api/events returns SSE stream."""
+        port = 17176
+        prebuilt = _build_graph_data(loaded_store)
+        server_thread = threading.Thread(
+            target=serve_viz, args=(loaded_store,),
+            kwargs={"port": port, "open_browser": False, "_prebuilt_data": prebuilt},
+            daemon=True,
+        )
+        server_thread.start()
+        time.sleep(1)
+
+        req = urllib.request.Request(f"http://localhost:{port}/api/events")
+        resp = urllib.request.urlopen(req, timeout=2)
+        assert resp.headers.get("Content-Type") == "text/event-stream"
+        # Read the initial comment
+        first_line = resp.readline().decode().strip()
+        assert first_line == ": connected"
+
     def test_serves_api_analytics(self, loaded_store):
         port = 17173
         prebuilt = _build_graph_data(loaded_store)

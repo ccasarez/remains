@@ -253,6 +253,20 @@ svg { width: 100%; height: 100%; }
 /* Gap dashes */
 .gap-line { stroke-dasharray: 6 4; opacity: 0.3; }
 
+/* Annotations */
+.annotation-text { filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); }
+.annotation-toast {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: var(--panel-bg); border: 2px solid var(--accent);
+    border-radius: 10px; padding: 16px 24px; font-size: 16px; font-weight: 500;
+    color: var(--text-bright); z-index: 200; backdrop-filter: blur(12px);
+    text-align: center; max-width: 500px;
+    animation: toast-in 0.3s ease-out;
+}
+.annotation-toast.fade-out { animation: toast-out 0.5s ease-in forwards; }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@keyframes toast-out { from { opacity: 1; } to { opacity: 0; } }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -501,6 +515,10 @@ function render() {
             e._labelEl.setAttribute('y', (s.y + t.y)/2 - 4);
         }
     });
+    // Update annotation positions
+    if (typeof annotationOverlays !== 'undefined') {
+        annotationOverlays.forEach(el => { if (el._update) el._update(); });
+    }
     // Gap lines connect community centroids
     gapEls.forEach(({ el, data: gap }) => {
         const cANodes = nodes.filter(n => n.community === gap.communityA);
@@ -920,6 +938,189 @@ document.addEventListener('keydown', (ev) => {
     }
 });
 
+// ── ANNOTATIONS (SSE from agent) ──
+const annotationLayer = document.createElementNS(ns, 'g');
+annotationLayer.setAttribute('id', 'annotations');
+svg.appendChild(annotationLayer);
+
+const annotationOverlays = []; // DOM elements for cleanup
+
+function clearAnnotations() {
+    annotationOverlays.forEach(el => el.remove());
+    annotationOverlays.length = 0;
+    // Clear any annotation CSS classes
+    nodeEls.forEach(({ circle, data: n }) => {
+        circle.classList.remove('annotated-node');
+        circle.removeAttribute('data-annotation');
+    });
+}
+
+function applyAnnotation(ann) {
+    const type = ann.type;
+
+    if (type === 'label-community') {
+        // Add a text label at the centroid of a community
+        const cid = ann.community;
+        const cNodes = nodes.filter(n => n.community === cid);
+        if (!cNodes.length) return;
+        const cx = cNodes.reduce((s,n)=>s+n.x,0)/cNodes.length;
+        const cy = cNodes.reduce((s,n)=>s+n.y,0)/cNodes.length;
+
+        const bg = document.createElementNS(ns, 'rect');
+        const text = document.createElementNS(ns, 'text');
+        text.setAttribute('x', cx); text.setAttribute('y', cy - 20);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('fill', ann.color || communities[cid]?.color || '#fff');
+        text.setAttribute('font-size', '14');
+        text.setAttribute('font-weight', '600');
+        text.setAttribute('pointer-events', 'none');
+        text.setAttribute('class', 'annotation-text');
+        text.textContent = ann.text;
+        annotationLayer.appendChild(text);
+        annotationOverlays.push(text);
+
+        // Update position on each frame
+        text._update = () => {
+            const cnow = nodes.filter(n => n.community === cid);
+            if (!cnow.length) return;
+            const nx = cnow.reduce((s,n)=>s+n.x,0)/cnow.length;
+            const ny = cnow.reduce((s,n)=>s+n.y,0)/cnow.length;
+            text.setAttribute('x', nx); text.setAttribute('y', ny - 25);
+        };
+    }
+
+    else if (type === 'label-node') {
+        // Add a callout label to a specific node
+        const node = nodes.find(n => n.id === ann.node || n.label === ann.node);
+        if (!node) return;
+
+        const text = document.createElementNS(ns, 'text');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('fill', ann.color || '#ffeaa7');
+        text.setAttribute('font-size', '12');
+        text.setAttribute('font-weight', '600');
+        text.setAttribute('pointer-events', 'none');
+        text.setAttribute('class', 'annotation-text');
+        text.textContent = ann.text;
+        annotationLayer.appendChild(text);
+        annotationOverlays.push(text);
+
+        text._update = () => {
+            text.setAttribute('x', node.x);
+            text.setAttribute('y', node.y - node.size - 8);
+        };
+    }
+
+    else if (type === 'highlight-nodes') {
+        // Highlight specific nodes (by id or label), dim others
+        const targets = new Set();
+        (ann.nodes || []).forEach(q => {
+            const node = nodes.find(n => n.id === q || n.label === q);
+            if (node) targets.add(node.id);
+        });
+        if (!targets.size) return;
+
+        // Also include neighbors if requested
+        const visible = new Set(targets);
+        if (ann.showNeighbors) {
+            targets.forEach(nid => adjacency[nid]?.forEach(id => visible.add(id)));
+        }
+
+        nodeEls.forEach(({ circle, text, data: n }) => {
+            const show = visible.has(n.id);
+            const isPrimary = targets.has(n.id);
+            circle.setAttribute('opacity', show ? '1' : '0.06');
+            text.setAttribute('opacity', show ? '1' : '0.06');
+            if (isPrimary) {
+                circle.setAttribute('stroke', ann.color || '#ffeaa7');
+                circle.setAttribute('stroke-width', '3');
+            }
+        });
+        edgeEls.forEach(({ el, data: e }) => {
+            const show = visible.has(e.source) && visible.has(e.target);
+            el.setAttribute('stroke', show ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.01)');
+        });
+
+        // Store a reset function
+        annotationOverlays.push({
+            remove: () => {
+                nodeEls.forEach(({ circle, text, data: n }) => {
+                    circle.setAttribute('opacity', '0.85');
+                    text.setAttribute('opacity', '1');
+                    circle.removeAttribute('stroke');
+                    circle.removeAttribute('stroke-width');
+                });
+                edgeEls.forEach(({ el }) => {
+                    el.setAttribute('stroke', 'rgba(255,255,255,0.06)');
+                });
+            }
+        });
+    }
+
+    else if (type === 'highlight-community') {
+        // Highlight an entire community, dim others
+        const cid = ann.community;
+        nodeEls.forEach(({ circle, text, data: n }) => {
+            const show = n.community === cid;
+            circle.setAttribute('opacity', show ? '1' : '0.06');
+            text.setAttribute('opacity', show ? '1' : '0.06');
+        });
+        edgeEls.forEach(({ el, data: e }) => {
+            const sn = nodeIndex[e.source], tn = nodeIndex[e.target];
+            const show = sn?.community === cid && tn?.community === cid;
+            el.setAttribute('stroke', show ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.01)');
+        });
+
+        annotationOverlays.push({
+            remove: () => {
+                nodeEls.forEach(({ circle, text }) => {
+                    circle.setAttribute('opacity', '0.85');
+                    text.setAttribute('opacity', '1');
+                });
+                edgeEls.forEach(({ el }) => {
+                    el.setAttribute('stroke', 'rgba(255,255,255,0.06)');
+                });
+            }
+        });
+    }
+
+    else if (type === 'toast') {
+        // Show a temporary message overlay
+        const toast = document.createElement('div');
+        toast.className = 'annotation-toast';
+        toast.textContent = ann.text;
+        if (ann.color) toast.style.borderColor = ann.color;
+        document.body.appendChild(toast);
+        annotationOverlays.push(toast);
+        setTimeout(() => { toast.classList.add('fade-out'); }, (ann.duration || 5) * 1000 - 500);
+        setTimeout(() => { toast.remove(); }, (ann.duration || 5) * 1000);
+    }
+
+    else if (type === 'clear') {
+        clearAnnotations();
+        // Reset all visuals
+        pinnedNodes.clear();
+        updatePinVisuals();
+    }
+}
+
+// SSE connection for live annotations from agent
+let evtSource = null;
+function connectSSE() {
+    evtSource = new EventSource('/api/events');
+    evtSource.onmessage = (ev) => {
+        try {
+            const ann = JSON.parse(ev.data);
+            applyAnnotation(ann);
+        } catch(e) { console.warn('Bad annotation:', e); }
+    };
+    evtSource.onerror = () => {
+        // Reconnect after 2s
+        setTimeout(connectSSE, 2000);
+    };
+}
+connectSSE();
+
 // ── START ──
 simulate();
 </script>
@@ -938,6 +1139,11 @@ def serve_viz(
     data = _prebuilt_data or _build_graph_data(store, graph_uri)
     html = _HTML.replace("__GRAPH_DATA__", json.dumps(data))
 
+    # Shared annotation state
+    import queue
+    sse_clients: list[queue.Queue] = []
+    sse_lock = threading.Lock()
+
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             if self.path == "/" or self.path == "/index.html":
@@ -955,8 +1161,80 @@ def serve_viz(
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps(data.get("analytics", {})).encode("utf-8"))
+            elif self.path == "/api/events":
+                # SSE endpoint — long-lived connection
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Connection", "keep-alive")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+
+                q: queue.Queue = queue.Queue()
+                with sse_lock:
+                    sse_clients.append(q)
+                try:
+                    # Send keepalive comment
+                    self.wfile.write(b": connected\n\n")
+                    self.wfile.flush()
+                    while True:
+                        try:
+                            msg = q.get(timeout=30)
+                            self.wfile.write(f"data: {msg}\n\n".encode())
+                            self.wfile.flush()
+                        except queue.Empty:
+                            # Keepalive
+                            self.wfile.write(b": ping\n\n")
+                            self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError, OSError):
+                    pass
+                finally:
+                    with sse_lock:
+                        if q in sse_clients:
+                            sse_clients.remove(q)
             else:
                 self.send_error(404)
+
+        def do_POST(self):
+            if self.path == "/api/annotate":
+                content_length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(content_length).decode("utf-8")
+                try:
+                    annotation = json.loads(body)
+                except json.JSONDecodeError:
+                    self.send_response(400)
+                    self.end_headers()
+                    self.wfile.write(b'{"error": "invalid JSON"}')
+                    return
+
+                # Broadcast to all SSE clients
+                msg = json.dumps(annotation)
+                with sse_lock:
+                    dead = []
+                    for q in sse_clients:
+                        try:
+                            q.put_nowait(msg)
+                        except queue.Full:
+                            dead.append(q)
+                    for q in dead:
+                        sse_clients.remove(q)
+
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                clients_count = len(sse_clients)
+                self.wfile.write(json.dumps({"ok": True, "clients": clients_count}).encode())
+            else:
+                self.send_error(404)
+
+        def do_OPTIONS(self):
+            # CORS preflight
+            self.send_response(200)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.end_headers()
 
         def log_message(self, format, *args):
             pass

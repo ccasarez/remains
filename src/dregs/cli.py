@@ -349,5 +349,94 @@ def viz(db: Path | None, port: int, graph: str | None, no_open: bool):
         store.close()
 
 
+@cli.command()
+@click.argument("annotation_type", type=click.Choice([
+    "label-community", "label-node", "highlight-nodes",
+    "highlight-community", "toast", "clear",
+]))
+@click.option("--port", "-p", type=int, default=7171, help="Viz server port.")
+@click.option("--text", "-t", default=None, help="Annotation text.")
+@click.option("--community", "-c", type=int, default=None, help="Community ID.")
+@click.option("--node", "-n", multiple=True, help="Node ID or label (repeatable).")
+@click.option("--color", default=None, help="Color (hex).")
+@click.option("--duration", type=int, default=5, help="Toast duration (seconds).")
+@click.option("--neighbors/--no-neighbors", default=False, help="Show neighbors when highlighting.")
+@click.option("--host", default="localhost", help="Viz server host.")
+def annotate(
+    annotation_type: str,
+    port: int,
+    text: str | None,
+    community: int | None,
+    node: tuple[str, ...],
+    color: str | None,
+    duration: int,
+    neighbors: bool,
+    host: str,
+):
+    """Send annotations to a running dregs viz server.
+
+    The viz server receives annotations via SSE and renders them
+    in real-time on the graph. Use this to narrate, highlight,
+    and annotate the graph from scripts or agents.
+
+    \b
+    Annotation types:
+      label-community      Add text label at community centroid
+      label-node           Add text callout above a node
+      highlight-nodes      Highlight specific nodes, dim others
+      highlight-community  Highlight a community, dim others
+      toast                Show a centered message overlay
+      clear                Remove all annotations, reset view
+
+    \b
+    Examples:
+      dregs annotate toast -t "Welcome to the NRC knowledge graph"
+      dregs annotate label-community -c 0 -t "Commissioners"
+      dregs annotate highlight-nodes -n "Bradley R. Crowell" -n "Annie Caputo"
+      dregs annotate highlight-community -c 2
+      dregs annotate label-node -n "Affirmation Session" -t "Bridge node (BC=0.37)"
+      dregs annotate clear
+    """
+    import urllib.request
+    import urllib.error
+
+    annotation = {"type": annotation_type}
+    if text:
+        annotation["text"] = text
+    if community is not None:
+        annotation["community"] = community
+    if node:
+        if annotation_type == "label-node":
+            annotation["node"] = node[0]
+        else:
+            annotation["nodes"] = list(node)
+    if color:
+        annotation["color"] = color
+    if duration != 5:
+        annotation["duration"] = duration
+    if neighbors:
+        annotation["showNeighbors"] = True
+
+    url = f"http://{host}:{port}/api/annotate"
+    data = json.dumps(annotation).encode("utf-8")
+
+    try:
+        req = urllib.request.Request(
+            url, data=data,
+            headers={"Content-Type": "application/json"},
+        )
+        resp = urllib.request.urlopen(req, timeout=5)
+        result = json.loads(resp.read())
+        if result.get("ok"):
+            click.echo(f"Sent {annotation_type} to {result.get('clients', 0)} client(s)")
+        else:
+            click.echo(f"Error: {result}")
+            sys.exit(1)
+    except urllib.error.URLError as e:
+        click.echo(f"Cannot reach viz server at {url}: {e}")
+        click.echo("Is 'dregs viz' running?")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     cli()
