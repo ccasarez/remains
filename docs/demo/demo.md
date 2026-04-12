@@ -1,7 +1,7 @@
 # dregs — 3 Fixed Graphs Architecture
 
-*2026-04-12T21:34:27Z by Showboat 0.6.1*
-<!-- showboat-id: 5ad26d4f-a7a0-488e-ad9f-35f48ce700a8 -->
+*2026-04-12T21:49:54Z by Showboat 0.6.1*
+<!-- showboat-id: a14a3ade-cf2a-4028-8a95-1943b3035bcc -->
 
 One SQLite database = one knowledge domain. 3 fixed graphs: default (data + topics), urn:ontology (system + user vocabulary), urn:shacl (system + user shapes). System ontology ships dregs:Topic, dregs:Domain, dregs:RequiresDisplayName. Multiple domains = multiple databases.
 
@@ -19,24 +19,24 @@ rootdir: /tmp/dregs
 configfile: pyproject.toml
 collecting ... collected 51 items
 
-tests/test_core.py::TestInitV2::test_init_creates_three_graphs PASSED    [  1%]
-tests/test_core.py::TestInitV2::test_init_loads_system_ontology PASSED   [  3%]
-tests/test_core.py::TestInitV2::test_init_loads_user_ontology PASSED     [  5%]
-tests/test_core.py::TestInitV2::test_init_loads_system_shapes PASSED     [  7%]
-tests/test_core.py::TestInitV2::test_init_loads_user_shapes PASSED       [  9%]
-tests/test_core.py::TestLoadV2::test_load_into_default_graph PASSED      [ 11%]
-tests/test_core.py::TestLoadV2::test_load_rejects_bad_data PASSED        [ 13%]
-tests/test_core.py::TestLoadV2::test_no_named_graphs_created PASSED      [ 15%]
-tests/test_core.py::TestPromptV2::test_prompt_includes_user_classes PASSED [ 17%]
-tests/test_core.py::TestPromptV2::test_prompt_excludes_system_classes PASSED [ 19%]
+tests/test_core.py::TestInit::test_init_creates_three_graphs PASSED      [  1%]
+tests/test_core.py::TestInit::test_init_loads_system_ontology PASSED     [  3%]
+tests/test_core.py::TestInit::test_init_loads_user_ontology PASSED       [  5%]
+tests/test_core.py::TestInit::test_init_loads_system_shapes PASSED       [  7%]
+tests/test_core.py::TestInit::test_init_loads_user_shapes PASSED         [  9%]
+tests/test_core.py::TestLoad::test_load_into_default_graph PASSED        [ 11%]
+tests/test_core.py::TestLoad::test_load_rejects_bad_data PASSED          [ 13%]
+tests/test_core.py::TestLoad::test_no_named_graphs_created PASSED        [ 15%]
+tests/test_core.py::TestPrompt::test_prompt_includes_user_classes PASSED [ 17%]
+tests/test_core.py::TestPrompt::test_prompt_excludes_system_classes PASSED [ 19%]
 tests/test_core.py::TestPromptDomain::test_prompt_domain_filters_classes PASSED [ 21%]
 tests/test_core.py::TestPromptDomain::test_prompt_domain_includes_properties PASSED [ 23%]
 tests/test_core.py::TestNamespaceProtection::test_update_ontology_rejects_system_namespace PASSED [ 25%]
 tests/test_core.py::TestNamespaceProtection::test_update_shacl_rejects_system_namespace PASSED [ 27%]
-tests/test_core.py::TestExportV2::test_export_data_only PASSED           [ 29%]
-tests/test_core.py::TestExportV2::test_export_ontology_user_only PASSED  [ 31%]
-tests/test_core.py::TestExportV2::test_export_all PASSED                 [ 33%]
-tests/test_core.py::TestInfoV2::test_stats_structure PASSED              [ 35%]
+tests/test_core.py::TestExport::test_export_data_only PASSED             [ 29%]
+tests/test_core.py::TestExport::test_export_ontology_user_only PASSED    [ 31%]
+tests/test_core.py::TestExport::test_export_all PASSED                   [ 33%]
+tests/test_core.py::TestInfo::test_stats_structure PASSED                [ 35%]
 tests/test_core.py::TestDomains::test_create_domain PASSED               [ 37%]
 tests/test_core.py::TestDomains::test_add_to_domain PASSED               [ 39%]
 tests/test_core.py::TestDomains::test_list_domains_empty PASSED          [ 41%]
@@ -71,7 +71,7 @@ tests/test_viz.py::TestServeViz::test_post_annotate_bad_json PASSED      [ 96%]
 tests/test_viz.py::TestServeViz::test_sse_endpoint_connects PASSED       [ 98%]
 tests/test_viz.py::TestServeViz::test_serves_api_analytics PASSED        [100%]
 
-============================= 51 passed in 12.04s ==============================
+============================= 51 passed in 13.43s ==============================
 ```
 
 ## Initialize
@@ -107,7 +107,7 @@ export PATH=$HOME/.local/bin:$PATH && DREGS_DSN=/tmp/demo.db dregs info 2>/dev/n
 ```output
 Database:  /tmp/demo.db
 Version:   0.2.0
-Created:   2026-04-12T21:34:55.752835+00:00
+Created:   2026-04-12T21:50:29.270950+00:00
 Data:      23 triples
 Ontology:  151 triples
 SHACL:     96 triples
@@ -151,15 +151,13 @@ Do NOT invent new types. Output as Turtle (TTL) format.
 
 ### Organization (subclass of Agent)
   Definition: An Organization is an Agent representing a company, team, or institution.
-  example: Acme Corp
+  example: Engineering Team
 ```
 
 ## Domains — Scoped Extraction
 
-Domains group ontology classes. The prompt --domain flag filters to only those classes and their relevant properties.
-
 ```bash
-export PATH=$HOME/.local/bin:$PATH && DREGS_DSN=/tmp/demo.db dregs create-domain people -n 'People' -c http://example.com/ontology#Person -c http://example.com/ontology#Organization 2>/dev/null && DREGS_DSN=/tmp/demo.db dregs domains 2>/dev/null
+export PATH=$HOME/.local/bin:$PATH && DREGS_DSN=/tmp/demo.db dregs create-domain people -n People -c http://example.com/ontology#Person -c http://example.com/ontology#Organization 2>/dev/null && DREGS_DSN=/tmp/demo.db dregs domains 2>/dev/null
 ```
 
 ```output
@@ -180,13 +178,13 @@ Do NOT invent new types. Output as Turtle (TTL) format.
 ## Entity Types
 ### Organization (subclass of Agent)
   Definition: An Organization is an Agent representing a company, team, or institution.
-  example: Acme Corp
   example: Engineering Team
+  example: Acme Corp
 
 ### Person (subclass of Agent)
   Definition: A Person is an Agent representing a named individual.
-  example: Jane Doe, VP of Engineering
   example: John Smith, software engineer at Acme Corp
+  example: Jane Doe, VP of Engineering
 
 ## Relationships (Object Properties)
 - attendedBy: Meeting -> Person
@@ -197,31 +195,18 @@ Do NOT invent new types. Output as Turtle (TTL) format.
 ## Data Properties
 ```
 
-## Topics — First-Class Data
-
-Topics live in the default data graph alongside everything else. Just instances of dregs:Topic.
+## Topics
 
 ```bash
-export PATH=$HOME/.local/bin:$PATH && DREGS_DSN=/tmp/demo.db dregs create-topic leadership -n 'Leadership Team' -m http://example.com/ontology#alice -m http://example.com/ontology#bob 2>/dev/null && DREGS_DSN=/tmp/demo.db dregs topics 2>/dev/null && echo && DREGS_DSN=/tmp/demo.db dregs info 2>/dev/null
+export PATH=$HOME/.local/bin:$PATH && DREGS_DSN=/tmp/demo.db dregs create-topic leadership -n 'Leadership Team' -m http://example.com/ontology#alice -m http://example.com/ontology#bob 2>/dev/null && DREGS_DSN=/tmp/demo.db dregs topics 2>/dev/null
 ```
 
 ```output
 Created topic 'leadership' with 2 members
   leadership           2 members  "Leadership Team"
-
-Database:  /tmp/demo.db
-Version:   0.2.0
-Created:   2026-04-12T21:34:55.752835+00:00
-Data:      27 triples
-Ontology:  155 triples
-SHACL:     96 triples
-Domains:   1
-Topics:    1
 ```
 
 ## Namespace Protection
-
-System namespaces (urn:dregs:system#, urn:dregs:shapes#) are immutable.
 
 ```bash
 export PATH=$HOME/.local/bin:$PATH
@@ -230,7 +215,7 @@ cat > /tmp/evil.ttl << 'EOF'
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 dregs:EvilClass a owl:Class .
 EOF
-DREGS_DSN=/tmp/demo.db dregs update-ontology /tmp/evil.ttl 2>&1 | grep -o 'ValueError:.*' || true
+DREGS_DSN=/tmp/demo.db dregs update-ontology /tmp/evil.ttl 2>&1 | grep -o 'ValueError:.*'
 ```
 
 ```output
@@ -279,11 +264,3 @@ ex:doc-arch-review a ex:Document ;
 
 <urn:dregs:topic#leadership> a dregs:Topic ;
 ```
-
-## Visualization
-
-```bash {image}
-docs/demo/viz.png
-```
-
-![9246a61a-2026-04-12](9246a61a-2026-04-12.png)
