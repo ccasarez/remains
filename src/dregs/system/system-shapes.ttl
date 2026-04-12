@@ -1,0 +1,59 @@
+@prefix dregs:    <urn:dregs:system#> .
+@prefix dregs-sh: <urn:dregs:shapes#> .
+@prefix sh:       <http://www.w3.org/ns/shacl#> .
+@prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos:     <http://www.w3.org/2004/02/skos/core#> .
+@prefix schema:   <http://schema.org/> .
+@prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
+
+# Topic must have label and at least one member
+dregs-sh:TopicShape a sh:NodeShape ;
+    sh:targetClass dregs:Topic ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Topic must have rdfs:label"
+    ] ;
+    sh:property [
+        sh:path dregs:member ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "Topic must have at least one member"
+    ] ;
+    sh:property [
+        sh:path dregs:createdBy ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string
+    ] ;
+    sh:property [
+        sh:path dregs:modularity ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:decimal
+    ] .
+
+# Domain must have label and at least one class
+dregs-sh:DomainShape a sh:NodeShape ;
+    sh:targetClass dregs:Domain ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Domain must have rdfs:label"
+    ] ;
+    sh:property [
+        sh:path dregs:includesClass ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "Domain must include at least one class"
+    ] .
+
+# All instances of RequiresDisplayName classes must have a display property
+dregs-sh:DisplayNameShape a sh:NodeShape ;
+    sh:targetClass dregs:RequiresDisplayName ;
+    sh:or (
+        [ sh:path rdfs:label ; sh:minCount 1 ]
+        [ sh:path skos:prefLabel ; sh:minCount 1 ]
+        [ sh:path schema:name ; sh:minCount 1 ]
+    ) ;
+    sh:message "Instance must have rdfs:label, skos:prefLabel, or schema:name" .

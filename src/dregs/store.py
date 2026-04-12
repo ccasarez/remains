@@ -451,6 +451,356 @@ class DregsStore:
         rows = conn.execute("SELECT prefix, namespace FROM prefixes").fetchall()
         return {r[0]: r[1] for r in rows}
 
+    # =================================================================
+    # v2 API: 3 fixed graphs (default, urn:ontology, urn:shacl)
+    # =================================================================
+
+    _SYSTEM_ONTOLOGY = Path(__file__).parent / "system" / "system-ontology.ttl"
+    _SYSTEM_SHAPES = Path(__file__).parent / "system" / "system-shapes.ttl"
+    _SYSTEM_NAMESPACES = ("urn:dregs:system#", "urn:dregs:shapes#")
+
+    def init_v2(
+        self,
+        ontology_path: Optional[Path] = None,
+        shacl_path: Optional[Path] = None,
+    ) -> dict:
+        """Initialize v2 database with 3 fixed graphs."""
+        conn = self._connect()
+        conn.executescript(_INIT_SQL)
+
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+            ("version", "0.2.0"),
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+            ("created_at", now),
+        )
+
+        for prefix, ns in _DEFAULT_PREFIXES.items():
+            conn.execute(
+                "INSERT OR REPLACE INTO prefixes (prefix, namespace) VALUES (?, ?)",
+                (prefix, ns),
+            )
+
+        # Extra prefixes for v2
+        conn.execute(
+            "INSERT OR REPLACE INTO prefixes (prefix, namespace) VALUES (?, ?)",
+            ("dregs", "urn:dregs:system#"),
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO prefixes (prefix, namespace) VALUES (?, ?)",
+            ("dregs-sh", "urn:dregs:shapes#"),
+        )
+
+        result = {"system_ontology_triples": 0, "user_ontology_triples": 0,
+                  "system_shacl_triples": 0, "user_shacl_triples": 0}
+
+        # Load system ontology into urn:ontology
+        if self._SYSTEM_ONTOLOGY.exists():
+            g = Graph()
+            g.parse(str(self._SYSTEM_ONTOLOGY), format="turtle")
+            count = self._insert_triples_to_graph(conn, g, "urn:ontology")
+            result["system_ontology_triples"] = count
+            for prefix, ns in g.namespaces():
+                if prefix:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO prefixes (prefix, namespace) VALUES (?, ?)",
+                        (str(prefix), str(ns)),
+                    )
+
+        # Load user ontology into urn:ontology
+        if ontology_path:
+            g = Graph()
+            g.parse(str(ontology_path), format="turtle")
+            count = self._insert_triples_to_graph(conn, g, "urn:ontology")
+            result["user_ontology_triples"] = count
+            for prefix, ns in g.namespaces():
+                if prefix:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO prefixes (prefix, namespace) VALUES (?, ?)",
+                        (str(prefix), str(ns)),
+                    )
+
+        # Load system shapes into urn:shacl
+        if self._SYSTEM_SHAPES.exists():
+            g = Graph()
+            g.parse(str(self._SYSTEM_SHAPES), format="turtle")
+            count = self._insert_triples_to_graph(conn, g, "urn:shacl")
+            result["system_shacl_triples"] = count
+
+        # Load user shapes into urn:shacl
+        if shacl_path:
+            g = Graph()
+            g.parse(str(shacl_path), format="turtle")
+            count = self._insert_triples_to_graph(conn, g, "urn:shacl")
+            result["user_shacl_triples"] = count
+
+        conn.commit()
+        return result
+
+    def _insert_triples_to_graph(self, conn, g: Graph, graph: str) -> int:
+        """Insert rdflib Graph triples into a specific graph. Returns count."""
+        rows = []
+        for s, p, o in g:
+            row = _rdflib_triple_to_row(s, p, o, graph)
+            if row:
+                rows.append(row)
+        conn.executemany(
+            """INSERT OR IGNORE INTO triples
+               (subject, predicate, object, object_type, datatype, lang, graph)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            rows,
+        )
+        return len(rows)
+
+    def load_v2(self, data_path: Path) -> dict:
+        """Load Turtle data into default graph. Validates against urn:ontology + urn:shacl."""
+        conn = self._connect()
+
+        data_graph = Graph()
+        data_graph.parse(str(data_path), format="turtle")
+
+        schema_graph = self._load_graph_rdflib(conn, "urn:ontology")
+        shacl_graph = self._load_graph_rdflib(conn, "urn:shacl")
+
+        if len(schema_graph) == 0:
+            raise ValueError("No ontology loaded. Run 'dregs init' first.")
+
+        result = run_validation(
+            schema_graph=schema_graph,
+            data_graph=data_graph,
+            shacl_graph=shacl_graph if len(shacl_graph) > 0 else None,
+        )
+
+        if not result.conforms:
+            return {"loaded": False, "validation": result}
+
+        count = self._insert_triples_to_graph(conn, data_graph, "")
+        conn.commit()
+        return {"loaded": True, "triple_count": count}
+
+    def _load_graph_rdflib(self, conn, graph: str) -> Graph:
+        """Load a specific graph into rdflib Graph."""
+        rows = conn.execute(
+            "SELECT subject, predicate, object, object_type, datatype, lang FROM triples WHERE graph = ?",
+            (graph,),
+        ).fetchall()
+        return _rows_to_rdflib_graph(rows)
+
+    def update_ontology(self, ontology_path: Path) -> int:
+        """Replace user ontology triples in urn:ontology. System triples protected."""
+        self._check_no_system_namespace(ontology_path)
+
+        conn = self._connect()
+        # Delete non-system triples from urn:ontology
+        conn.execute(
+            "DELETE FROM triples WHERE graph = 'urn:ontology' AND subject NOT LIKE 'urn:dregs:%'",
+        )
+        g = Graph()
+        g.parse(str(ontology_path), format="turtle")
+        count = self._insert_triples_to_graph(conn, g, "urn:ontology")
+        conn.commit()
+        return count
+
+    def update_shacl(self, shacl_path: Path) -> int:
+        """Replace user SHACL triples in urn:shacl. System shapes protected."""
+        self._check_no_system_namespace(shacl_path)
+
+        conn = self._connect()
+        conn.execute(
+            "DELETE FROM triples WHERE graph = 'urn:shacl' AND subject NOT LIKE 'urn:dregs:%'",
+        )
+        g = Graph()
+        g.parse(str(shacl_path), format="turtle")
+        count = self._insert_triples_to_graph(conn, g, "urn:shacl")
+        conn.commit()
+        return count
+
+    def _check_no_system_namespace(self, ttl_path: Path):
+        """Raise ValueError if file contains system namespace triples."""
+        g = Graph()
+        g.parse(str(ttl_path), format="turtle")
+        for s, _, _ in g:
+            s_str = str(s)
+            for ns in self._SYSTEM_NAMESPACES:
+                if s_str.startswith(ns):
+                    raise ValueError(
+                        f"Cannot modify system namespace ({ns}). "
+                        f"Subject {s_str} is protected."
+                    )
+
+    def export_v2(self, what: str = "data") -> str:
+        """Export data, ontology, shacl, or all as Turtle."""
+        conn = self._connect()
+
+        if what == "data":
+            g = self._load_graph_rdflib(conn, "")
+        elif what == "ontology":
+            # User ontology only (exclude system triples)
+            rows = conn.execute(
+                "SELECT subject, predicate, object, object_type, datatype, lang "
+                "FROM triples WHERE graph = 'urn:ontology' AND subject NOT LIKE 'urn:dregs:%'",
+            ).fetchall()
+            g = _rows_to_rdflib_graph(rows)
+        elif what == "shacl":
+            rows = conn.execute(
+                "SELECT subject, predicate, object, object_type, datatype, lang "
+                "FROM triples WHERE graph = 'urn:shacl' AND subject NOT LIKE 'urn:dregs:%'",
+            ).fetchall()
+            g = _rows_to_rdflib_graph(rows)
+        elif what == "all":
+            rows = conn.execute(
+                "SELECT subject, predicate, object, object_type, datatype, lang FROM triples",
+            ).fetchall()
+            g = _rows_to_rdflib_graph(rows)
+        else:
+            raise ValueError(f"Unknown export type: {what}")
+
+        for prefix, ns in self.get_prefixes().items():
+            g.bind(prefix, Namespace(ns))
+        return g.serialize(format="turtle")
+
+    def stats_v2(self) -> dict:
+        """Return v2 database statistics."""
+        conn = self._connect()
+        data = conn.execute("SELECT COUNT(*) FROM triples WHERE graph = ''").fetchone()[0]
+        ont = conn.execute("SELECT COUNT(*) FROM triples WHERE graph = 'urn:ontology'").fetchone()[0]
+        shacl = conn.execute("SELECT COUNT(*) FROM triples WHERE graph = 'urn:shacl'").fetchone()[0]
+        version = conn.execute("SELECT value FROM metadata WHERE key = 'version'").fetchone()
+        created = conn.execute("SELECT value FROM metadata WHERE key = 'created_at'").fetchone()
+
+        # Count topics
+        topic_count = conn.execute(
+            "SELECT COUNT(DISTINCT subject) FROM triples WHERE graph = '' AND predicate = ? AND object = ?",
+            (str(RDF.type), "urn:dregs:system#Topic"),
+        ).fetchone()[0]
+
+        # Count domains
+        domain_count = conn.execute(
+            "SELECT COUNT(DISTINCT subject) FROM triples WHERE graph = 'urn:ontology' AND predicate = ? AND object = ?",
+            (str(RDF.type), "urn:dregs:system#Domain"),
+        ).fetchone()[0]
+
+        return {
+            "data_triples": data,
+            "ontology_triples": ont,
+            "shacl_triples": shacl,
+            "topics": topic_count,
+            "domains": domain_count,
+            "version": version[0] if version else "unknown",
+            "created_at": created[0] if created else "unknown",
+        }
+
+    def create_domain(self, slug: str, label: str, class_uris: list[str]):
+        """Create a domain in urn:ontology graph."""
+        conn = self._connect()
+        domain_uri = f"urn:dregs:domain#{slug}"
+        rows = [
+            (domain_uri, str(RDF.type), "urn:dregs:system#Domain", "uri", "", "", "urn:ontology"),
+            (domain_uri, str(RDFS.label), label, "typed_literal", str(URIRef("http://www.w3.org/2001/XMLSchema#string")), "", "urn:ontology"),
+        ]
+        for cls_uri in class_uris:
+            rows.append(
+                (domain_uri, "urn:dregs:system#includesClass", cls_uri, "uri", "", "", "urn:ontology"),
+            )
+        conn.executemany(
+            """INSERT OR IGNORE INTO triples
+               (subject, predicate, object, object_type, datatype, lang, graph)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            rows,
+        )
+        conn.commit()
+
+    def add_to_domain(self, slug: str, class_uris: list[str]):
+        """Add classes to an existing domain."""
+        conn = self._connect()
+        domain_uri = f"urn:dregs:domain#{slug}"
+        rows = [
+            (domain_uri, "urn:dregs:system#includesClass", cls_uri, "uri", "", "", "urn:ontology")
+            for cls_uri in class_uris
+        ]
+        conn.executemany(
+            """INSERT OR IGNORE INTO triples
+               (subject, predicate, object, object_type, datatype, lang, graph)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            rows,
+        )
+        conn.commit()
+
+    def list_domains(self) -> list[dict]:
+        """List all domains in urn:ontology graph."""
+        conn = self._connect()
+        domain_uris = conn.execute(
+            "SELECT DISTINCT subject FROM triples WHERE graph = 'urn:ontology' AND predicate = ? AND object = ?",
+            (str(RDF.type), "urn:dregs:system#Domain"),
+        ).fetchall()
+
+        domains = []
+        for (uri,) in domain_uris:
+            label_row = conn.execute(
+                "SELECT object FROM triples WHERE graph = 'urn:ontology' AND subject = ? AND predicate = ?",
+                (uri, str(RDFS.label)),
+            ).fetchone()
+            classes = conn.execute(
+                "SELECT object FROM triples WHERE graph = 'urn:ontology' AND subject = ? AND predicate = ?",
+                (uri, "urn:dregs:system#includesClass"),
+            ).fetchall()
+            domains.append({
+                "uri": uri,
+                "slug": uri.split("#")[-1],
+                "name": label_row[0] if label_row else uri,
+                "classes": [r[0] for r in classes],
+            })
+        return domains
+
+    def create_topic(self, slug: str, label: str, member_uris: list[str]):
+        """Create a topic in default data graph."""
+        conn = self._connect()
+        topic_uri = f"urn:dregs:topic#{slug}"
+        rows = [
+            (topic_uri, str(RDF.type), "urn:dregs:system#Topic", "uri", "", "", ""),
+            (topic_uri, str(RDFS.label), label, "typed_literal", str(URIRef("http://www.w3.org/2001/XMLSchema#string")), "", ""),
+        ]
+        for member_uri in member_uris:
+            rows.append(
+                (topic_uri, "urn:dregs:system#member", member_uri, "uri", "", "", ""),
+            )
+        conn.executemany(
+            """INSERT OR IGNORE INTO triples
+               (subject, predicate, object, object_type, datatype, lang, graph)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            rows,
+        )
+        conn.commit()
+
+    def list_topics(self) -> list[dict]:
+        """List all topics in default data graph."""
+        conn = self._connect()
+        topic_uris = conn.execute(
+            "SELECT DISTINCT subject FROM triples WHERE graph = '' AND predicate = ? AND object = ?",
+            (str(RDF.type), "urn:dregs:system#Topic"),
+        ).fetchall()
+
+        topics = []
+        for (uri,) in topic_uris:
+            label_row = conn.execute(
+                "SELECT object FROM triples WHERE graph = '' AND subject = ? AND predicate = ?",
+                (uri, str(RDFS.label)),
+            ).fetchone()
+            members = conn.execute(
+                "SELECT object FROM triples WHERE graph = '' AND subject = ? AND predicate = ?",
+                (uri, "urn:dregs:system#member"),
+            ).fetchall()
+            topics.append({
+                "uri": uri,
+                "slug": uri.split("#")[-1],
+                "name": label_row[0] if label_row else uri,
+                "members": [r[0] for r in members],
+            })
+        return topics
+
 
 # === Validation (absorbed from owl-guard) ===
 
