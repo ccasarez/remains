@@ -541,14 +541,14 @@ class TestAskQuery:
             "ASK WHERE { ?s ?p ?o }",
         )
         assert len(qr.bindings) == 1
-        assert qr.bindings[0]["result"] == "true"
+        assert qr.bindings[0]["result"] is True
 
     def test_ask_false(self, loaded_store):
         qr = execute_sparql(
             loaded_store,
             "ASK WHERE { <http://nonexistent.example/x> ?p ?o }",
         )
-        assert qr.bindings[0]["result"] == "false"
+        assert qr.bindings[0]["result"] is False
 
 
 # ── SQLite detection (issue #6) ────────────────────────────────────

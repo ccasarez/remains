@@ -304,7 +304,7 @@ class TestCLIOptionalDB:
 
         db = tmp_path / "explicit.db"
         runner = CliRunner()
-        result = runner.invoke(cli, ["init", str(db)])
+        result = runner.invoke(cli, ["init", "--db", str(db)])
         assert result.exit_code == 0, result.output
         assert "Initialized" in result.output
 

@@ -60,7 +60,7 @@ def execute_sparql(
         # ASK returns a boolean
         return QueryResult(
             variables=["result"],
-            bindings=[{"result": str(bool(result)).lower()}],
+            bindings=[{"result": bool(result)}],
         )
     else:
         # SELECT returns bindings
