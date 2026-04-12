@@ -266,6 +266,33 @@ svg { width: 100%; height: 100%; }
 .prop-row { font-size: 11px; padding: 1px 0; display: flex; gap: 6px; }
 .prop-key { color: var(--text-dim); min-width: 70px; flex-shrink: 0; }
 .prop-val { color: var(--text); word-break: break-word; }
+.prop-truncated { cursor: pointer; border-bottom: 1px dashed rgba(255,255,255,0.2); }
+.prop-truncated:hover { color: var(--accent); border-color: var(--accent); }
+
+/* Reader modal */
+#reader-modal { display: none; position: fixed; inset: 0; z-index: 300; }
+#reader-modal.open { display: flex; align-items: center; justify-content: center; animation: fade-in 0.2s ease; }
+.reader-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
+.reader-content {
+    position: relative; background: #12121a; border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px; width: min(90vw, 640px); max-height: 85vh;
+    display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.reader-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px 12px; border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.reader-title { font-size: 14px; font-weight: 600; color: var(--text-bright); }
+.reader-close {
+    background: none; border: none; color: var(--text-dim); font-size: 18px;
+    cursor: pointer; padding: 4px 8px; border-radius: 4px;
+}
+.reader-close:hover { background: rgba(255,255,255,0.08); color: var(--text-bright); }
+.reader-body {
+    padding: 20px; overflow-y: auto; font-size: 14px; line-height: 1.7;
+    color: var(--text); white-space: pre-wrap; word-break: break-word;
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 
 /* Stats bar */
 #stats {
@@ -812,8 +839,13 @@ function showNodeInfo(node) {
         html += `<div class="node-props">`;
         propKeys.forEach(k => {
             const v = props[k];
-            const display = v.length > 80 ? v.slice(0, 78) + '…' : v;
-            html += `<div class="prop-row"><span class="prop-key">${k}</span> <span class="prop-val">${display}</span></div>`;
+            const truncated = v.length > 80;
+            const display = truncated ? v.slice(0, 78) + '…' : v;
+            if (truncated) {
+                html += `<div class="prop-row"><span class="prop-key">${k}</span> <span class="prop-val prop-truncated" data-full="${v.replace(/"/g, '&quot;')}" data-key="${k}">${display}</span></div>`;
+            } else {
+                html += `<div class="prop-row"><span class="prop-key">${k}</span> <span class="prop-val">${display}</span></div>`;
+            }
         });
         html += `</div>`;
     }
@@ -855,6 +887,44 @@ function showNodeInfo(node) {
             }
         });
     });
+
+    // Wire up truncated property expansion
+    infoPanel.querySelectorAll('.prop-truncated').forEach(el => {
+        el.addEventListener('click', () => {
+            openReaderModal(el.dataset.key, el.dataset.full, node.label);
+        });
+    });
+}
+
+// ── READER MODAL ──
+function openReaderModal(key, text, nodeLabel) {
+    let modal = document.getElementById('reader-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'reader-modal';
+        modal.innerHTML = `
+            <div class="reader-backdrop"></div>
+            <div class="reader-content">
+                <div class="reader-header">
+                    <div class="reader-title"></div>
+                    <button class="reader-close">✕</button>
+                </div>
+                <div class="reader-body"></div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        modal.querySelector('.reader-backdrop').addEventListener('click', () => closeReaderModal());
+        modal.querySelector('.reader-close').addEventListener('click', () => closeReaderModal());
+    }
+    modal.querySelector('.reader-title').textContent = `${nodeLabel} — ${key}`;
+    modal.querySelector('.reader-body').textContent = text;
+    modal.classList.add('open');
+}
+
+function closeReaderModal() {
+    const modal = document.getElementById('reader-modal');
+    if (modal) modal.classList.remove('open');
 }
 
 // ── SEARCH ──
@@ -1060,6 +1130,8 @@ document.getElementById('stats').textContent =
 document.addEventListener('keydown', (ev) => {
     if (ev.key === '/' && document.activeElement !== searchInput) { ev.preventDefault(); searchInput.focus(); }
     if (ev.key === 'Escape') {
+        const modal = document.getElementById('reader-modal');
+        if (modal && modal.classList.contains('open')) { closeReaderModal(); return; }
         searchInput.value = ''; searchInput.dispatchEvent(new Event('input')); searchInput.blur();
         pinnedNodes.clear(); updatePinVisuals();
         infoPanel.style.display = 'none';
