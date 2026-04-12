@@ -1,0 +1,276 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix nrc:  <http://example.com/nrc#> .
+
+# === Source provenance ===
+# All triples derived from: ML26069A020 (NRC ADAMS)
+# Affirmation Session transcript, March 4, 2026
+
+# === Persons ===
+
+nrc:person-nieh a nrc:Person ;
+    nrc:name "Ho K. Nieh" ;
+    nrc:role "Chairman" ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:person-wright a nrc:Person ;
+    nrc:name "David A. Wright" ;
+    nrc:role "Commissioner" ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:person-crowell a nrc:Person ;
+    nrc:name "Bradley R. Crowell" ;
+    nrc:role "Commissioner" ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:person-marzano a nrc:Person ;
+    nrc:name "Matthew J. Marzano" ;
+    nrc:role "Commissioner" ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:person-weaver a nrc:Person ;
+    nrc:name "Douglas W. Weaver" ;
+    nrc:role "Commissioner" ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:person-taggart a nrc:Person ;
+    nrc:name "David Taggart" ;
+    nrc:role "Acting General Counsel" ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:person-safford a nrc:Person ;
+    nrc:name "Carrie M. Safford" ;
+    nrc:role "Secretary of the Commission" ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+# === Organizations ===
+
+nrc:org-nrc a nrc:Organization ;
+    nrc:name "U.S. Nuclear Regulatory Commission" ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:org-virginia-electric a nrc:Organization ;
+    nrc:name "Virginia Electric and Power Company" ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:org-beyond-nuclear a nrc:Organization ;
+    nrc:name "Beyond Nuclear, Inc." ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:org-sierra-club a nrc:Organization ;
+    nrc:name "Sierra Club, Inc." ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:org-fpl a nrc:Organization ;
+    nrc:name "Florida Power & Light Company" ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:org-miami-waterkeeper a nrc:Organization ;
+    nrc:name "Miami Waterkeeper" ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:org-gle a nrc:Organization ;
+    nrc:name "Global Laser Enrichment, LLC" ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:org-entergy a nrc:Organization ;
+    nrc:name "Entergy Nuclear Operations, Inc." ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:org-holtec a nrc:Organization ;
+    nrc:name "Holtec International" ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:org-terrapower a nrc:Organization ;
+    nrc:name "TerraPower, LLC" ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:org-us-sfr a nrc:Organization ;
+    nrc:name "US SFR Owner, LLC" ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+# === Facilities ===
+
+nrc:facility-north-anna a nrc:Facility ;
+    nrc:name "North Anna Power Station, Units 1 and 2" ;
+    nrc:operatedBy nrc:org-virginia-electric ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:facility-turkey-point a nrc:Facility ;
+    nrc:name "Turkey Point Nuclear Generating Units 3 and 4" ;
+    nrc:operatedBy nrc:org-fpl ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:facility-paducah a nrc:Facility ;
+    nrc:name "Paducah Laser Enrichment Facility" ;
+    nrc:operatedBy nrc:org-gle ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:facility-palisades a nrc:Facility ;
+    nrc:name "Palisades Nuclear Plant" ;
+    nrc:operatedBy nrc:org-holtec ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:facility-kemmerer a nrc:Facility ;
+    nrc:name "Kemmerer Power Station, Unit 1" ;
+    nrc:description "Natrium advanced reactor plant in Lincoln County, Wyoming" ;
+    nrc:operatedBy nrc:org-us-sfr ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+# === Meeting ===
+
+nrc:meeting-20260304 a nrc:Meeting ;
+    nrc:name "Affirmation Session" ;
+    nrc:date "2026-03-04"^^xsd:date ;
+    nrc:location "Rockville, Maryland (via teleconference)" ;
+    nrc:chairedBy nrc:person-nieh ;
+    nrc:attendedBy nrc:person-nieh, nrc:person-wright, nrc:person-crowell,
+        nrc:person-marzano, nrc:person-weaver, nrc:person-taggart, nrc:person-safford ;
+    nrc:hasAgendaItem nrc:item-1, nrc:item-2, nrc:item-3, nrc:item-4, nrc:item-5, nrc:item-6 ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+# === Regulatory Documents ===
+
+nrc:doc-secy-24-0095 a nrc:RegulatoryDocument ;
+    nrc:secyNumber "SECY-24-0095" ;
+    nrc:title "Virginia Electric and Power Company (North Anna Power Station, Units 1 and 2); Appeal of LBP-24-4" ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:doc-secy-25-0011 a nrc:RegulatoryDocument ;
+    nrc:secyNumber "SECY-25-0011" ;
+    nrc:title "Florida Power & Light Company (Turkey Point Nuclear Generating Units 3 and 4), Petition for Review of LBP-24-8" ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:doc-secy-25-0079 a nrc:RegulatoryDocument ;
+    nrc:secyNumber "SECY-25-0079" ;
+    nrc:title "Notice and Order for Global Laser Enrichment, LLC Paducah Laser Enrichment Facility" ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:doc-secy-25-0100 a nrc:RegulatoryDocument ;
+    nrc:secyNumber "SECY-25-0100" ;
+    nrc:title "Final Rule, FR-6: Freedom of Information Act Implementing Regulations" ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:doc-secy-25-0101 a nrc:RegulatoryDocument ;
+    nrc:secyNumber "SECY-25-0101" ;
+    nrc:title "Entergy/Holtec - Applicants' Motion to Dismiss Contention as Moot and Terminate Proceeding" ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:doc-secy-26-0018 a nrc:RegulatoryDocument ;
+    nrc:secyNumber "SECY-26-0018" ;
+    nrc:title "US SFR Owner, LLC (Kemmerer Power Station, Unit 1), Docket No. 50-613-CP, Mandatory Hearing Decision" ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+# === Agenda Item 1: North Anna appeal ===
+
+nrc:item-1 a nrc:AgendaItem ;
+    nrc:itemNumber "1"^^xsd:integer ;
+    nrc:title "North Anna Power Station subsequent license renewal appeal" ;
+    nrc:concerns nrc:doc-secy-24-0095 ;
+    nrc:involvesFacility nrc:facility-north-anna ;
+    nrc:involvesOrganization nrc:org-virginia-electric, nrc:org-beyond-nuclear, nrc:org-sierra-club ;
+    nrc:resultedIn nrc:decision-1 ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:decision-1 a nrc:Decision ;
+    nrc:outcome "Approved Memorandum and Order affirming LBP-24-7" ;
+    nrc:description "Affirmed the Atomic Safety and Licensing Board's decision denying Beyond Nuclear and Sierra Club's hearing request in the subsequent license renewal proceeding for North Anna Power Station." ;
+    nrc:voteResult "5-0 unanimous" ;
+    nrc:votedBy nrc:person-nieh, nrc:person-wright, nrc:person-crowell, nrc:person-marzano, nrc:person-weaver ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+# === Agenda Item 2: Turkey Point petition ===
+
+nrc:item-2 a nrc:AgendaItem ;
+    nrc:itemNumber "2"^^xsd:integer ;
+    nrc:title "Turkey Point subsequent license renewal petition for review" ;
+    nrc:concerns nrc:doc-secy-25-0011 ;
+    nrc:involvesFacility nrc:facility-turkey-point ;
+    nrc:involvesOrganization nrc:org-fpl, nrc:org-miami-waterkeeper ;
+    nrc:resultedIn nrc:decision-2 ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:decision-2 a nrc:Decision ;
+    nrc:outcome "Denied Miami Waterkeeper's petition for review" ;
+    nrc:description "Denied petition for review of LBP-24-8, which dismissed contentions and terminated the proceeding related to Turkey Point subsequent license renewal. Chairman Nieh did not participate." ;
+    nrc:voteResult "4-0 (Chairman Nieh recused)" ;
+    nrc:votedBy nrc:person-wright, nrc:person-crowell, nrc:person-marzano, nrc:person-weaver ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+# === Agenda Item 3: Global Laser Enrichment ===
+
+nrc:item-3 a nrc:AgendaItem ;
+    nrc:itemNumber "3"^^xsd:integer ;
+    nrc:title "Global Laser Enrichment Paducah facility notice and order" ;
+    nrc:concerns nrc:doc-secy-25-0079 ;
+    nrc:involvesFacility nrc:facility-paducah ;
+    nrc:involvesOrganization nrc:org-gle ;
+    nrc:resultedIn nrc:decision-3 ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:decision-3 a nrc:Decision ;
+    nrc:outcome "Approved Federal Register notice and Order" ;
+    nrc:description "Approved notice of hearing, guidance on several issues, and milestone schedule for GLE's application to construct and operate a uranium enrichment facility using laser-based isotope separation technology." ;
+    nrc:voteResult "5-0 unanimous" ;
+    nrc:votedBy nrc:person-nieh, nrc:person-wright, nrc:person-crowell, nrc:person-marzano, nrc:person-weaver ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+# === Agenda Item 4: FOIA final rule ===
+
+nrc:item-4 a nrc:AgendaItem ;
+    nrc:itemNumber "4"^^xsd:integer ;
+    nrc:title "FOIA implementing regulations final rule" ;
+    nrc:concerns nrc:doc-secy-25-0100 ;
+    nrc:resultedIn nrc:decision-4 ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:decision-4 a nrc:Decision ;
+    nrc:outcome "Approved publication and implementation of final rule" ;
+    nrc:description "Approved final rule amending 10 CFR FOIA implementing regulations. Certified under Regulatory Flexibility Act that rule will not have significant economic impact on small entities." ;
+    nrc:voteResult "5-0 unanimous" ;
+    nrc:votedBy nrc:person-nieh, nrc:person-wright, nrc:person-crowell, nrc:person-marzano, nrc:person-weaver ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+# === Agenda Item 5: Palisades/Holtec motion ===
+
+nrc:item-5 a nrc:AgendaItem ;
+    nrc:itemNumber "5"^^xsd:integer ;
+    nrc:title "Palisades motion to dismiss contention and terminate proceeding" ;
+    nrc:concerns nrc:doc-secy-25-0101 ;
+    nrc:involvesFacility nrc:facility-palisades ;
+    nrc:involvesOrganization nrc:org-entergy, nrc:org-holtec ;
+    nrc:resultedIn nrc:decision-5 ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:decision-5 a nrc:Decision ;
+    nrc:outcome "Denied motion to dismiss; proceeding remains in abeyance" ;
+    nrc:description "Denied Applicants' motion to dismiss pending contention as moot and to terminate the proceeding. Continues to hold proceeding in abeyance per CLI-25-2. Chairman Nieh offered additional views." ;
+    nrc:voteResult "5-0 unanimous" ;
+    nrc:votedBy nrc:person-nieh, nrc:person-wright, nrc:person-crowell, nrc:person-marzano, nrc:person-weaver ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+# === Agenda Item 6: TerraPower Kemmerer construction permit ===
+
+nrc:item-6 a nrc:AgendaItem ;
+    nrc:itemNumber "6"^^xsd:integer ;
+    nrc:title "Kemmerer Power Station construction permit mandatory hearing" ;
+    nrc:concerns nrc:doc-secy-26-0018 ;
+    nrc:involvesFacility nrc:facility-kemmerer ;
+    nrc:involvesOrganization nrc:org-us-sfr, nrc:org-terrapower ;
+    nrc:resultedIn nrc:decision-6 ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .
+
+nrc:decision-6 a nrc:Decision ;
+    nrc:outcome "Authorized issuance of construction permit" ;
+    nrc:description "Approved Memorandum and Order authorizing issuance of construction permit for Kemmerer Power Station Unit 1, a Natrium advanced reactor. Chairman Nieh noted this is a historic step forward for advanced nuclear energy in the United States." ;
+    nrc:voteResult "5-0 unanimous" ;
+    nrc:votedBy nrc:person-nieh, nrc:person-wright, nrc:person-crowell, nrc:person-marzano, nrc:person-weaver ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2606/ML26069A020.pdf> .

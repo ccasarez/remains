@@ -1,0 +1,205 @@
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix nrc:  <http://example.com/nrc#> .
+
+# === Abstract Classes ===
+
+nrc:Agent a owl:Class ;
+    rdfs:label "Agent" ;
+    rdfs:comment "Abstract: an entity that acts." .
+
+nrc:Artifact a owl:Class ;
+    rdfs:label "Artifact" ;
+    rdfs:comment "Abstract: a regulatory artifact." .
+
+nrc:Activity a owl:Class ;
+    rdfs:label "Activity" ;
+    rdfs:comment "Abstract: something that happens." .
+
+[] a owl:AllDisjointClasses ;
+    owl:members ( nrc:Agent nrc:Artifact nrc:Activity ) .
+
+# === Agent subclasses ===
+
+nrc:Person a owl:Class ;
+    rdfs:subClassOf nrc:Agent ;
+    rdfs:label "Person" ;
+    rdfs:comment "A named individual (commissioner, counsel, secretary)." ;
+    skos:example "Ho K. Nieh, Chairman of the NRC" ;
+    skos:example "Carrie M. Safford, Secretary of the Commission" .
+
+nrc:Organization a owl:Class ;
+    rdfs:subClassOf nrc:Agent ;
+    rdfs:label "Organization" ;
+    rdfs:comment "A company, agency, or group." ;
+    skos:example "Nuclear Regulatory Commission" ;
+    skos:example "TerraPower, LLC" .
+
+[] a owl:AllDisjointClasses ;
+    owl:members ( nrc:Person nrc:Organization ) .
+
+# === Artifact subclasses ===
+
+nrc:RegulatoryDocument a owl:Class ;
+    rdfs:subClassOf nrc:Artifact ;
+    rdfs:label "RegulatoryDocument" ;
+    rdfs:comment "A formal NRC document such as a SECY paper, rule, or order." ;
+    skos:example "SECY-24-0095 regarding North Anna Power Station" .
+
+nrc:Decision a owl:Class ;
+    rdfs:subClassOf nrc:Artifact ;
+    rdfs:label "Decision" ;
+    rdfs:comment "A formal Commission vote outcome." ;
+    skos:example "Approved Memorandum and Order affirming LBP-24-7" .
+
+nrc:Facility a owl:Class ;
+    rdfs:subClassOf nrc:Artifact ;
+    rdfs:label "Facility" ;
+    rdfs:comment "A nuclear facility (power station, enrichment plant, etc.)." ;
+    skos:example "North Anna Power Station, Units 1 and 2" ;
+    skos:example "Kemmerer Power Station, Unit 1" .
+
+[] a owl:AllDisjointClasses ;
+    owl:members ( nrc:RegulatoryDocument nrc:Decision nrc:Facility ) .
+
+# === Activity subclasses ===
+
+nrc:Meeting a owl:Class ;
+    rdfs:subClassOf nrc:Activity ;
+    rdfs:label "Meeting" ;
+    rdfs:comment "A public or closed Commission meeting or session." ;
+    skos:example "Affirmation Session on March 4, 2026" .
+
+nrc:AgendaItem a owl:Class ;
+    rdfs:subClassOf nrc:Activity ;
+    rdfs:label "AgendaItem" ;
+    rdfs:comment "A single item within a meeting agenda." ;
+    skos:example "Item 1: SECY-24-0095 North Anna appeal" .
+
+[] a owl:AllDisjointClasses ;
+    owl:members ( nrc:Meeting nrc:AgendaItem ) .
+
+# === Object Properties ===
+
+nrc:chairedBy a owl:ObjectProperty ;
+    rdfs:label "chairedBy" ;
+    rdfs:domain nrc:Meeting ;
+    rdfs:range nrc:Person ;
+    rdfs:comment "The person who chaired/presided over a meeting." .
+
+nrc:attendedBy a owl:ObjectProperty ;
+    rdfs:label "attendedBy" ;
+    rdfs:domain nrc:Meeting ;
+    rdfs:range nrc:Person ;
+    rdfs:comment "A person who attended the meeting." .
+
+nrc:hasAgendaItem a owl:ObjectProperty ;
+    rdfs:label "hasAgendaItem" ;
+    rdfs:domain nrc:Meeting ;
+    rdfs:range nrc:AgendaItem ;
+    rdfs:comment "Links a meeting to its agenda items." .
+
+nrc:concerns a owl:ObjectProperty ;
+    rdfs:label "concerns" ;
+    rdfs:domain nrc:AgendaItem ;
+    rdfs:range nrc:RegulatoryDocument ;
+    rdfs:comment "The regulatory document an agenda item addresses." .
+
+nrc:resultedIn a owl:ObjectProperty ;
+    rdfs:label "resultedIn" ;
+    rdfs:domain nrc:AgendaItem ;
+    rdfs:range nrc:Decision ;
+    rdfs:comment "The decision produced by an agenda item." .
+
+nrc:involvesFacility a owl:ObjectProperty ;
+    rdfs:label "involvesFacility" ;
+    rdfs:domain nrc:AgendaItem ;
+    rdfs:range nrc:Facility ;
+    rdfs:comment "A facility involved in the agenda item." .
+
+nrc:votedBy a owl:ObjectProperty ;
+    rdfs:label "votedBy" ;
+    rdfs:domain nrc:Decision ;
+    rdfs:range nrc:Person ;
+    rdfs:comment "A commissioner who voted on the decision." .
+
+nrc:involvesOrganization a owl:ObjectProperty ;
+    rdfs:label "involvesOrganization" ;
+    rdfs:domain nrc:AgendaItem ;
+    rdfs:range nrc:Organization ;
+    rdfs:comment "An organization involved in the agenda item." .
+
+nrc:operatedBy a owl:ObjectProperty ;
+    rdfs:label "operatedBy" ;
+    rdfs:domain nrc:Facility ;
+    rdfs:range nrc:Organization ;
+    rdfs:comment "The organization that operates/owns a facility." .
+
+nrc:affiliatedWith a owl:ObjectProperty ;
+    rdfs:label "affiliatedWith" ;
+    rdfs:domain nrc:Person ;
+    rdfs:range nrc:Organization ;
+    rdfs:comment "The organization a person is affiliated with." .
+
+# === Data Properties ===
+
+nrc:name a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "name" ;
+    rdfs:range xsd:string .
+
+nrc:role a owl:DatatypeProperty ;
+    rdfs:label "role" ;
+    rdfs:domain nrc:Person ;
+    rdfs:range xsd:string ;
+    rdfs:comment "A person's role (Chairman, Commissioner, Secretary, etc.)." .
+
+nrc:date a owl:DatatypeProperty ;
+    rdfs:label "date" ;
+    rdfs:range xsd:date .
+
+nrc:location a owl:DatatypeProperty ;
+    rdfs:label "location" ;
+    rdfs:domain nrc:Meeting ;
+    rdfs:range xsd:string .
+
+nrc:secyNumber a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "secyNumber" ;
+    rdfs:domain nrc:RegulatoryDocument ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The SECY document identifier." .
+
+nrc:title a owl:DatatypeProperty ;
+    rdfs:label "title" ;
+    rdfs:range xsd:string .
+
+nrc:description a owl:DatatypeProperty ;
+    rdfs:label "description" ;
+    rdfs:range xsd:string .
+
+nrc:outcome a owl:DatatypeProperty ;
+    rdfs:label "outcome" ;
+    rdfs:domain nrc:Decision ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The result of the vote (approved, denied, etc.)." .
+
+nrc:voteResult a owl:DatatypeProperty ;
+    rdfs:label "voteResult" ;
+    rdfs:domain nrc:Decision ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Summary of the vote (e.g., unanimous, 4-0)." .
+
+nrc:adamsAccession a owl:DatatypeProperty ;
+    rdfs:label "adamsAccession" ;
+    rdfs:domain nrc:RegulatoryDocument ;
+    rdfs:range xsd:string ;
+    rdfs:comment "ADAMS accession number (ML number)." .
+
+nrc:itemNumber a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "itemNumber" ;
+    rdfs:domain nrc:AgendaItem ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Ordinal position in the agenda." .

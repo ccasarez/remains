@@ -89,7 +89,7 @@ class QueryResult:
         widths = {v: len(v) for v in self.variables}
         for row in self.bindings:
             for v in self.variables:
-                val = row.get(v, "")
+                val = str(row.get(v, ""))
                 widths[v] = max(widths[v], len(val))
 
         # Header
@@ -100,7 +100,7 @@ class QueryResult:
         # Rows
         for row in self.bindings:
             line = " | ".join(
-                row.get(v, "").ljust(widths[v]) for v in self.variables
+                str(row.get(v, "")).ljust(widths[v]) for v in self.variables
             )
             lines.append(line)
 

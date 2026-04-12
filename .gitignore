@@ -6,3 +6,4 @@ build/
 *.db
 *.sqlite
 *.sqlite3
+nrc-demo/nrc.db

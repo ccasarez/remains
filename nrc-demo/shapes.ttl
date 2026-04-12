@@ -1,0 +1,95 @@
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix nrc:  <http://example.com/nrc#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+nrc:PersonShape a sh:NodeShape ;
+    sh:targetClass nrc:Person ;
+    sh:property [
+        sh:path nrc:name ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Person must have exactly one name." ;
+    ] .
+
+nrc:OrganizationShape a sh:NodeShape ;
+    sh:targetClass nrc:Organization ;
+    sh:property [
+        sh:path nrc:name ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Organization must have exactly one name." ;
+    ] .
+
+nrc:MeetingShape a sh:NodeShape ;
+    sh:targetClass nrc:Meeting ;
+    sh:property [
+        sh:path nrc:name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Meeting must have a name." ;
+    ] ;
+    sh:property [
+        sh:path nrc:date ;
+        sh:minCount 1 ;
+        sh:datatype xsd:date ;
+        sh:message "Meeting must have a date." ;
+    ] ;
+    sh:property [
+        sh:path nrc:chairedBy ;
+        sh:minCount 1 ;
+        sh:class nrc:Person ;
+        sh:message "Meeting must have a chair." ;
+    ] .
+
+nrc:AgendaItemShape a sh:NodeShape ;
+    sh:targetClass nrc:AgendaItem ;
+    sh:property [
+        sh:path nrc:itemNumber ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:integer ;
+        sh:message "AgendaItem must have an item number." ;
+    ] ;
+    sh:property [
+        sh:path nrc:resultedIn ;
+        sh:minCount 1 ;
+        sh:class nrc:Decision ;
+        sh:message "AgendaItem must result in a decision." ;
+    ] .
+
+nrc:DecisionShape a sh:NodeShape ;
+    sh:targetClass nrc:Decision ;
+    sh:property [
+        sh:path nrc:outcome ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Decision must have an outcome." ;
+    ] ;
+    sh:property [
+        sh:path nrc:votedBy ;
+        sh:minCount 1 ;
+        sh:class nrc:Person ;
+        sh:message "Decision must have at least one voter." ;
+    ] .
+
+nrc:FacilityShape a sh:NodeShape ;
+    sh:targetClass nrc:Facility ;
+    sh:property [
+        sh:path nrc:name ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Facility must have a name." ;
+    ] .
+
+nrc:RegulatoryDocumentShape a sh:NodeShape ;
+    sh:targetClass nrc:RegulatoryDocument ;
+    sh:property [
+        sh:path nrc:secyNumber ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "RegulatoryDocument must have a SECY number." ;
+    ] .
