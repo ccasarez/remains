@@ -259,6 +259,8 @@ svg { width: 100%; height: 100%; }
 #info .type-badge { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 3px; margin-bottom: 6px; }
 #info .connections { font-size: 11px; color: var(--text-dim); }
 #info .conn-item { color: #b2bec3; padding: 1px 0; }
+.node-link { color: var(--accent); cursor: pointer; text-decoration: none; }
+.node-link:hover { text-decoration: underline; color: var(--text-bright); }
 .node-stats { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
 .node-props { margin: 6px 0; padding: 6px 0; border-top: 1px solid rgba(255,255,255,0.06); border-bottom: 1px solid rgba(255,255,255,0.06); }
 .prop-row { font-size: 11px; padding: 1px 0; display: flex; gap: 6px; }
@@ -821,7 +823,8 @@ function showNodeInfo(node) {
         html += `<div style="color:var(--text-dim)">→ ${outgoing.length} outgoing</div>`;
         outgoing.slice(0, 8).forEach(e => {
             const t = nodeIndex[e.target];
-            html += `<div class="conn-item">${e.label} → ${t ? t.label : e.target}</div>`;
+            const tLabel = t ? t.label : e.target;
+            html += `<div class="conn-item">${e.label} → <a class="node-link" data-node="${e.target}">${tLabel}</a></div>`;
         });
         if (outgoing.length > 8) html += `<div class="conn-item" style="color:var(--text-dim)">… +${outgoing.length - 8} more</div>`;
     }
@@ -829,13 +832,29 @@ function showNodeInfo(node) {
         html += `<div style="margin-top:4px;color:var(--text-dim)">← ${incoming.length} incoming</div>`;
         incoming.slice(0, 8).forEach(e => {
             const s = nodeIndex[e.source];
-            html += `<div class="conn-item">${s ? s.label : e.source} → ${e.label}</div>`;
+            const sLabel = s ? s.label : e.source;
+            html += `<div class="conn-item"><a class="node-link" data-node="${e.source}">${sLabel}</a> → ${e.label}</div>`;
         });
         if (incoming.length > 8) html += `<div class="conn-item" style="color:var(--text-dim)">… +${incoming.length - 8} more</div>`;
     }
     html += `</div>`;
     infoPanel.innerHTML = html;
     infoPanel.style.display = 'block';
+
+    // Wire up clickable node links
+    infoPanel.querySelectorAll('.node-link').forEach(link => {
+        link.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            const nid = link.dataset.node;
+            const target = nodeIndex[nid];
+            if (target) {
+                pinnedNodes.clear();
+                pinnedNodes.add(nid);
+                updatePinVisuals();
+                showNodeInfo(target);
+            }
+        });
+    });
 }
 
 // ── SEARCH ──
