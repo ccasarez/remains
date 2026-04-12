@@ -1239,11 +1239,26 @@ def serve_viz(
         def log_message(self, format, *args):
             pass
 
-    class ReuseServer(http.server.HTTPServer):
+    class ThreadedServer(http.server.HTTPServer):
+        """Threaded HTTP server — required so SSE connections don't block POST handlers."""
         allow_reuse_address = True
         allow_reuse_port = True
+        daemon_threads = True
 
-    server = ReuseServer(("0.0.0.0", port), Handler)
+        def process_request(self, request, client_address):
+            """Handle each request in a new daemon thread."""
+            t = threading.Thread(target=self.process_request_thread, args=(request, client_address), daemon=True)
+            t.start()
+
+        def process_request_thread(self, request, client_address):
+            try:
+                self.finish_request(request, client_address)
+            except Exception:
+                self.handle_error(request, client_address)
+            finally:
+                self.shutdown_request(request)
+
+    server = ThreadedServer(("0.0.0.0", port), Handler)
 
     nc = len(data.get("nodes", []))
     ec = len(data.get("edges", []))
