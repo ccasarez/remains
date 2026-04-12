@@ -1143,6 +1143,7 @@ def serve_viz(
     import queue
     sse_clients: list[queue.Queue] = []
     sse_lock = threading.Lock()
+    annotation_history: list[str] = []  # replayed to new SSE clients
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
@@ -1173,10 +1174,16 @@ def serve_viz(
                 q: queue.Queue = queue.Queue()
                 with sse_lock:
                     sse_clients.append(q)
+                    # Replay annotation history to new client
+                    replay = list(annotation_history)
                 try:
-                    # Send keepalive comment
                     self.wfile.write(b": connected\n\n")
                     self.wfile.flush()
+                    # Replay existing annotations
+                    for msg in replay:
+                        self.wfile.write(f"data: {msg}\n\n".encode())
+                    if replay:
+                        self.wfile.flush()
                     while True:
                         try:
                             msg = q.get(timeout=30)
@@ -1207,8 +1214,15 @@ def serve_viz(
                     self.wfile.write(b'{"error": "invalid JSON"}')
                     return
 
-                # Broadcast to all SSE clients
+                # Store in history (clear resets it)
                 msg = json.dumps(annotation)
+                with sse_lock:
+                    if annotation.get("type") == "clear":
+                        annotation_history.clear()
+                    else:
+                        annotation_history.append(msg)
+
+                # Broadcast to all SSE clients
                 with sse_lock:
                     dead = []
                     for q in sse_clients:
