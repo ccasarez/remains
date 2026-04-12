@@ -155,10 +155,17 @@ def _rows_to_rdflib_graph(rows: list[tuple]) -> Graph:
 class DregsStore:
     """SQLite-backed RDF triple store."""
 
+    # XDG-compliant default: ~/.local/share/dregs/dregs.db
+    _XDG_DEFAULT_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "dregs"
+    _XDG_DEFAULT_DB = _XDG_DEFAULT_DIR / "dregs.db"
+
     def __init__(self, dsn: str | Path | None = None):
         resolved = dsn if dsn is not None else os.environ.get("DREGS_DSN")
+        self._used_default = False
         if resolved is None:
-            raise ValueError("No DSN. Pass a path/URL or set DREGS_DSN.")
+            self._XDG_DEFAULT_DIR.mkdir(parents=True, exist_ok=True)
+            resolved = self._XDG_DEFAULT_DB
+            self._used_default = True
         self._dsn = str(resolved).strip()
         # Backward compat: expose db_path for local file DSNs
         if self._dsn.startswith(("libsql://", "https://", "http://")):

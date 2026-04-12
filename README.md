@@ -164,6 +164,82 @@ context = prompt_from_store(db)
 db.close()
 ```
 
+## Connection Modes
+
+dregs supports three connection modes, configured via environment variables:
+
+### Local Only (default)
+
+Pure local SQLite. No network required.
+
+```bash
+export DREGS_DSN=./my.db
+dregs init --schema ontology.ttl
+```
+
+### Remote Only (Turso Cloud)
+
+Every read and write goes over the network to a Turso database.
+
+```bash
+export DREGS_DSN=libsql://your-db-org.turso.io
+export DREGS_AUTH_TOKEN=eyJ...
+dregs info
+```
+
+### Embedded Replica (recommended for production)
+
+A local SQLite file acts as a read cache that syncs with Turso Cloud. Reads hit the local file (fast, works offline), writes go through the cloud, and `sync()` pulls changes down on connect.
+
+```bash
+export DREGS_DSN="${XDG_DATA_HOME:-$HOME/.local/share}/dregs/dregs.db"
+export DREGS_SYNC_URL=libsql://your-db-org.turso.io
+export DREGS_AUTH_TOKEN=eyJ...
+dregs info
+```
+
+```
+┌─────────────────┐      sync()       ┌──────────────────┐
+│ Local SQLite     │ ◄──────────────► │ Turso Cloud DB    │
+│ (fast reads)     │                  │ (source of truth) │
+│ ~/.local/share/  │                  │                   │
+│   dregs/dregs.db │                  │                   │
+└─────────────────┘                  └──────────────────┘
+```
+
+**How it works:**
+
+- `libsql.connect()` is called with both a local `database` path and a `sync_url`
+- On connect, `conn.sync()` pulls the latest state from the cloud into the local file
+- All subsequent reads hit the local SQLite — typically **5-10x faster** than remote
+- The local file is a full SQLite database you can inspect with standard tools
+
+**Environment variables:**
+
+| Variable | Required | Description |
+|---|---|---|
+| `DREGS_DSN` | Yes | Local file path (embedded replica) or `libsql://` URL (remote) |
+| `DREGS_SYNC_URL` | No | Turso cloud URL to sync from. Activates embedded replica mode |
+| `DREGS_AUTH_TOKEN` | For remote/sync | Turso auth token (rw or ro) |
+
+**XDG compliance:** The recommended location for the local replica is `$XDG_DATA_HOME/dregs/dregs.db` (defaults to `~/.local/share/dregs/dregs.db`). This follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/) — persistent user data goes in `XDG_DATA_HOME`.
+
+### Switching modes
+
+The mode is determined entirely by what environment variables are set:
+
+```bash
+# Local only — no DREGS_SYNC_URL, DSN is a file path
+DREGS_DSN=./local.db
+
+# Remote only — DSN is a libsql:// URL, no DREGS_SYNC_URL
+DREGS_DSN=libsql://your-db.turso.io
+
+# Embedded replica — DSN is a file path + DREGS_SYNC_URL is set
+DREGS_DSN=~/.local/share/dregs/dregs.db
+DREGS_SYNC_URL=libsql://your-db.turso.io
+```
+
 ## Architecture
 
 - **SQLite** owns persistence. Triples table with subject/predicate/object/graph columns. Indexed for common SPARQL access patterns.

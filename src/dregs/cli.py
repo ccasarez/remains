@@ -13,6 +13,26 @@ from dregs.store import DregsStore, validate_files
 
 _SQLITE_MAGIC = b"SQLite format 3\x00"
 
+_LOCAL_DB_HINT = (
+    "Hint: This database is local to this machine. For cloud sync or sharing,\n"
+    "set up Turso embedded replicas:\n"
+    "\n"
+    "  export DREGS_DSN=$XDG_DATA_HOME/dregs/dregs.db\n"
+    "  export DREGS_SYNC_URL=libsql://your-db.turso.io\n"
+    "  export DREGS_AUTH_TOKEN=your-token\n"
+    "\n"
+    "See dregs --help or https://docs.turso.tech for setup.\n"
+)
+
+
+def _open_store(db: Path | None) -> DregsStore:
+    """Create a DregsStore, warn on stderr if falling back to the XDG default."""
+    store = DregsStore(db)
+    if store._used_default:
+        click.echo(f"Using default database: {store._dsn}", err=True)
+        click.echo(_LOCAL_DB_HINT, err=True)
+    return store
+
 
 def _is_sqlite(path: Path) -> bool:
     """Detect SQLite files by magic bytes instead of file extension."""
@@ -29,17 +49,42 @@ def cli():
     """dregs: SQLite RDF triple store with SPARQL, OWL reasoning, and SHACL validation.
 
     \b
-    Quick start:
-      dregs init --db my.db --schema ontology.ttl --shacl shapes.ttl
-      dregs load data.ttl --db my.db --graph emails
-      dregs query "SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10" --db my.db
-      dregs export --db my.db --type schema
+    Quick start (using DREGS_DSN):
+      dregs init --schema ontology.ttl --shacl shapes.ttl
+      dregs load data.ttl --graph emails
+      dregs query "SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10"
+      dregs export --type schema
+
+    \b
+    Connection modes:
+
+    \b
+      Local only (no network):
+        export DREGS_DSN=./my.db
+
+    \b
+      Remote only (Turso Cloud):
+        export DREGS_DSN=libsql://your-db.turso.io
+        export DREGS_AUTH_TOKEN=eyJ...
+
+    \b
+      Embedded replica (local cache + cloud sync, recommended):
+        export DREGS_DSN=$XDG_DATA_HOME/dregs/dregs.db
+        export DREGS_SYNC_URL=libsql://your-db.turso.io
+        export DREGS_AUTH_TOKEN=eyJ...
+
+    \b
+    The embedded replica keeps a local SQLite file that syncs from
+    Turso Cloud on connect. Reads hit the local file (~10x faster);
+    writes go through the cloud. The default XDG location is
+    ~/.local/share/dregs/dregs.db.
 
     \b
     Environment variables:
-      DREGS_DSN         Database path or libsql:// URL (replaces --db).
-      DREGS_AUTH_TOKEN  Auth token for remote libsql databases.
-      DREGS_SYNC_URL    Turso sync URL for embedded replica mode.
+      DREGS_DSN         Database file path or libsql:// URL (replaces --db).
+      DREGS_SYNC_URL    Turso cloud URL. When set with a file-path DSN,
+                        activates embedded replica mode (local cache + sync).
+      DREGS_AUTH_TOKEN   Auth token for Turso Cloud (remote and replica modes).
       DREGS_VIZ_URL     Base URL printed by `dregs viz`. Use {port}
                         as placeholder, e.g. https://myhost.example:{port}
     """
@@ -53,7 +98,7 @@ def cli():
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
 def init(db: Path | None, schema: Path | None, shacl: Path | None, as_json: bool):
     """Initialize a new triple store database."""
-    store = DregsStore(db)
+    store = _open_store(db)
     try:
         result = store.init(schema_path=schema, shacl_path=shacl)
         if as_json:
@@ -81,7 +126,7 @@ def load(data: Path, db: Path | None, graph: str | None, as_json: bool):
     \b
     DATA  Turtle file (.ttl) to load
     """
-    store = DregsStore(db)
+    store = _open_store(db)
     try:
         result = store.load(data, graph_name=graph)
 
@@ -192,7 +237,7 @@ def query(sparql: str, db: Path | None, fmt: str, graph: str | None):
     """
     from dregs.sparql import execute_sparql
 
-    store = DregsStore(db)
+    store = _open_store(db)
     try:
         result = execute_sparql(store, sparql, graph_uri=graph, format=fmt)
 
@@ -215,7 +260,7 @@ def query(sparql: str, db: Path | None, fmt: str, graph: str | None):
 @click.option("--graph", "-g", default=None, help="Export specific named graph.")
 def export(db: Path | None, graph_type: str, graph: str | None):
     """Export graphs from the store as Turtle."""
-    store = DregsStore(db)
+    store = _open_store(db)
     try:
         if graph:
             click.echo(store.export_graph(graph))
@@ -266,7 +311,7 @@ def prompt(source: Path | None, db: str | None):
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
 def info(db: Path | None, as_json: bool):
     """Show database statistics."""
-    store = DregsStore(db)
+    store = _open_store(db)
     try:
         s = store.stats()
         if as_json:
@@ -288,7 +333,7 @@ def info(db: Path | None, as_json: bool):
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
 def graphs(db: Path | None, as_json: bool):
     """List all named graphs in the store."""
-    store = DregsStore(db)
+    store = _open_store(db)
     try:
         graph_list = store.list_graphs()
         if as_json:
@@ -316,7 +361,7 @@ def drop(db: Path | None, graph: str, yes: bool, as_json: bool):
     if not yes:
         click.confirm(f"Drop graph '{graph}' and all its triples?", abort=True)
 
-    store = DregsStore(db)
+    store = _open_store(db)
     try:
         count = store.drop_graph(graph)
         if as_json:
@@ -352,7 +397,7 @@ def viz(db: Path | None, port: int, graph: str | None, no_open: bool):
     base_url = os.environ.get("DREGS_VIZ_URL")
     if base_url and "{port}" in base_url:
         base_url = base_url.replace("{port}", str(port))
-    store = DregsStore(db)
+    store = _open_store(db)
     try:
         serve_viz(store, port=port, graph_uri=graph, open_browser=not no_open, base_url=base_url)
     finally:

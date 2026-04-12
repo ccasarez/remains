@@ -50,15 +50,21 @@ class TestConstructorDSN:
         store = DregsStore(str(db))
         assert store._dsn == str(db)
 
-    def test_no_dsn_raises(self, monkeypatch):
+    def test_no_dsn_defaults_to_xdg(self, monkeypatch):
         monkeypatch.delenv("DREGS_DSN", raising=False)
-        with pytest.raises(ValueError, match="No DSN"):
-            DregsStore()
+        store = DregsStore()
+        assert store._dsn.endswith("dregs/dregs.db")
+        assert store._used_default is True
 
-    def test_none_dsn_no_env_raises(self, monkeypatch):
+    def test_none_dsn_defaults_to_xdg(self, monkeypatch):
         monkeypatch.delenv("DREGS_DSN", raising=False)
-        with pytest.raises(ValueError, match="No DSN"):
-            DregsStore(None)
+        store = DregsStore(None)
+        assert store._dsn.endswith("dregs/dregs.db")
+        assert store._used_default is True
+
+    def test_explicit_dsn_not_default(self, tmp_path):
+        store = DregsStore(tmp_path / "test.db")
+        assert store._used_default is False
 
     def test_conn_initially_none(self, tmp_path):
         store = DregsStore(tmp_path / "test.db")
@@ -308,14 +314,16 @@ class TestCLIOptionalDB:
         assert result.exit_code == 0, result.output
         assert "Initialized" in result.output
 
-    def test_init_no_db_no_env_fails(self, monkeypatch):
+    def test_init_no_db_no_env_uses_default(self, monkeypatch):
         from click.testing import CliRunner
         from dregs.cli import cli
 
         monkeypatch.delenv("DREGS_DSN", raising=False)
-        runner = CliRunner()
+        runner = CliRunner(mix_stderr=False)
         result = runner.invoke(cli, ["init"])
-        assert result.exit_code != 0
+        assert result.exit_code == 0, result.output
+        assert "Using default database" in result.stderr
+        assert "local to this machine" in result.stderr
 
     def test_info_with_env_dsn(self, tmp_path, monkeypatch):
         from click.testing import CliRunner
