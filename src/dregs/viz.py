@@ -64,6 +64,29 @@ def _build_graph_data(store: DregsStore, graph_uri: Optional[str] = None) -> dic
         if s and label:
             labels[s] = label
 
+    # Get all literal (data) properties for nodes
+    props_sparql = """
+    SELECT ?s ?p ?o
+    WHERE {
+        ?s ?p ?o .
+        FILTER(isLiteral(?o))
+        FILTER(!STRSTARTS(STR(?s), "http://www.w3.org/"))
+        FILTER(!STRSTARTS(STR(?p), "http://www.w3.org/"))
+        FILTER(!STRSTARTS(STR(?p), "http://www.w3.org/ns/prov#"))
+    }
+    """
+    props_result = execute_sparql(store, props_sparql, graph_uri=graph_uri, format="json")
+    node_props: dict[str, dict[str, str]] = {}  # short_uri -> {prop_short: value}
+    for row in props_result.bindings:
+        s = row.get("s", "")
+        p = row.get("p", "")
+        o = row.get("o", "")
+        if s and p and o:
+            s_short = shorten(s) if ":" not in s or s.startswith("http") else s
+            p_short = shorten(p) if ":" not in p or p.startswith("http") else p
+            p_label = p_short.split(":")[-1] if ":" in p_short else p_short
+            node_props.setdefault(s_short, {})[p_label] = o
+
     for row in result.bindings:
         s = row.get("s", "")
         p = row.get("p", "")
@@ -102,6 +125,11 @@ def _build_graph_data(store: DregsStore, graph_uri: Optional[str] = None) -> dic
             "source": s_short, "target": o_short,
             "label": p_short.split(":")[-1] if ":" in p_short else p_short,
         })
+
+    # Attach literal properties to nodes
+    for nid, n in nodes_map.items():
+        if nid in node_props:
+            n["properties"] = node_props[nid]
 
     nodes = list(nodes_map.values())
 
@@ -232,6 +260,10 @@ svg { width: 100%; height: 100%; }
 #info .connections { font-size: 11px; color: var(--text-dim); }
 #info .conn-item { color: #b2bec3; padding: 1px 0; }
 .node-stats { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+.node-props { margin: 6px 0; padding: 6px 0; border-top: 1px solid rgba(255,255,255,0.06); border-bottom: 1px solid rgba(255,255,255,0.06); }
+.prop-row { font-size: 11px; padding: 1px 0; display: flex; gap: 6px; }
+.prop-key { color: var(--text-dim); min-width: 70px; flex-shrink: 0; }
+.prop-val { color: var(--text); word-break: break-word; }
 
 /* Stats bar */
 #stats {
@@ -770,6 +802,20 @@ function showNodeInfo(node) {
     if (comm) html += `<span class="type-badge" style="background:${comm.color}33;color:${comm.color}">Topic ${node.community}</span>`;
     html += `<br>BC: ${node.bc?.toFixed(3) || 0} · Degree: ${node.degree || 0}`;
     html += `</div>`;
+
+    // Properties (literal values)
+    const props = node.properties || {};
+    const propKeys = Object.keys(props).filter(k => k !== 'name'); // name is already the title
+    if (propKeys.length) {
+        html += `<div class="node-props">`;
+        propKeys.forEach(k => {
+            const v = props[k];
+            const display = v.length > 80 ? v.slice(0, 78) + '…' : v;
+            html += `<div class="prop-row"><span class="prop-key">${k}</span> <span class="prop-val">${display}</span></div>`;
+        });
+        html += `</div>`;
+    }
+
     html += `<div class="connections">`;
     if (outgoing.length) {
         html += `<div style="color:var(--text-dim)">→ ${outgoing.length} outgoing</div>`;
