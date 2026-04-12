@@ -1,0 +1,118 @@
+@prefix nrc: <http://example.com/nrc#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+
+nrc:meeting-affirm-20250715
+    a nrc:Meeting ;
+    nrc:name "Affirmation Session"^^xsd:string ;
+    nrc:date "2025-07-15"^^xsd:date ;
+    nrc:location "Rockville, Maryland (via teleconference)"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2519/ML25197A041.pdf> ;
+    nrc:chairedBy nrc:person-caputo ;
+    nrc:attendedBy nrc:person-crowell ;
+    nrc:attendedBy nrc:person-marzano ;
+    nrc:attendedBy nrc:person-safford ;
+    nrc:attendedBy nrc:person-clark ;
+    nrc:hasAgendaItem nrc:item-20250715-1 ;
+    nrc:hasAgendaItem nrc:item-20250715-2 .
+
+nrc:person-caputo
+    a nrc:Person ;
+    nrc:name "Annie Caputo"^^xsd:string ;
+    nrc:role "Chairman"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2519/ML25197A041.pdf> .
+
+nrc:person-crowell
+    a nrc:Person ;
+    nrc:name "Bradley R. Crowell"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2519/ML25197A041.pdf> .
+
+nrc:person-marzano
+    a nrc:Person ;
+    nrc:name "Matthew J. Marzano"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2519/ML25197A041.pdf> .
+
+nrc:person-safford
+    a nrc:Person ;
+    nrc:name "Carrie M. Safford"^^xsd:string ;
+    nrc:role "Secretary of the Commission"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2519/ML25197A041.pdf> .
+
+nrc:person-clark
+    a nrc:Person ;
+    nrc:name "Brooke Clark"^^xsd:string ;
+    nrc:role "General Counsel"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2519/ML25197A041.pdf> .
+
+nrc:org-nrc
+    a nrc:Organization ;
+    nrc:name "U.S. Nuclear Regulatory Commission"^^xsd:string .
+
+nrc:facility-diablo-canyon
+    a nrc:Facility ;
+    nrc:name "Diablo Canyon Nuclear Power Plant, Units 1 and 2"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2519/ML25197A041.pdf> .
+
+nrc:facility-dewey-burdock
+    a nrc:Facility ;
+    nrc:name "Dewey-Burdock In Situ Uranium Recovery Facility"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2519/ML25197A041.pdf> .
+
+nrc:org-pge
+    a nrc:Organization ;
+    nrc:name "Pacific Gas and Electric Co."^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2519/ML25197A041.pdf> .
+
+nrc:org-powertech
+    a nrc:Organization ;
+    nrc:name "Powertech (USA) Inc."^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2519/ML25197A041.pdf> .
+
+nrc:doc-secy-24-0103
+    a nrc:RegulatoryDocument ;
+    nrc:secyNumber "SECY-24-0103"^^xsd:string ;
+    nrc:title "Pacific Gas and Electric Co. (Diablo Canyon Nuclear Power Plant, Units 1 and 2); Petition to Intervene and Request for Hearing in License Renewal Proceeding"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2519/ML25197A041.pdf> .
+
+nrc:item-20250715-1
+    a nrc:AgendaItem ;
+    nrc:itemNumber 1 ;
+    nrc:concerns nrc:doc-secy-24-0103 ;
+    nrc:resultedIn nrc:decision-20250715-1 ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2519/ML25197A041.pdf> .
+
+nrc:decision-20250715-1
+    a nrc:Decision ;
+    nrc:description "Approved"^^xsd:string ;
+    nrc:outcome "Approved"^^xsd:string ;
+    nrc:votedBy nrc:person-caputo ;
+    nrc:votedBy nrc:person-crowell ;
+    nrc:votedBy nrc:person-marzano .
+
+nrc:doc-secy-25-0032
+    a nrc:RegulatoryDocument ;
+    nrc:secyNumber "SECY-25-0032"^^xsd:string ;
+    nrc:title "Powertech (USA) Inc. (Dewey-Burdock In Situ Uranium Recovery Facility); Appeal by Susan Henderson of LBP-25-3"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2519/ML25197A041.pdf> .
+
+nrc:item-20250715-2
+    a nrc:AgendaItem ;
+    nrc:itemNumber 2 ;
+    nrc:concerns nrc:doc-secy-25-0032 ;
+    nrc:resultedIn nrc:decision-20250715-2 ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2519/ML25197A041.pdf> .
+
+nrc:decision-20250715-2
+    a nrc:Decision ;
+    nrc:description "Approved"^^xsd:string ;
+    nrc:outcome "Approved"^^xsd:string ;
+    nrc:votedBy nrc:person-caputo ;
+    nrc:votedBy nrc:person-crowell ;
+    nrc:votedBy nrc:person-marzano .

@@ -1,0 +1,56 @@
+@prefix nrc: <http://example.com/nrc#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+
+nrc:meeting-human-capital-20250617
+    a nrc:Meeting ;
+    nrc:name "Briefing on Human Capital and Equal Employment Opportunity"^^xsd:string ;
+    nrc:date "2025-06-17"^^xsd:date ;
+    nrc:location "Rockville, Maryland"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2517/ML25174A277.pdf> ;
+    nrc:chairedBy nrc:person-wright ;
+    nrc:attendedBy nrc:person-caputo ;
+    nrc:attendedBy nrc:person-crowell ;
+    nrc:attendedBy nrc:person-marzano .
+
+nrc:person-wright
+    a nrc:Person ;
+    nrc:name "David A. Wright"^^xsd:string ;
+    nrc:role "Chairman"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2517/ML25174A277.pdf> .
+
+nrc:person-caputo
+    a nrc:Person ;
+    nrc:name "Annie Caputo"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2517/ML25174A277.pdf> .
+
+nrc:person-crowell
+    a nrc:Person ;
+    nrc:name "Bradley R. Crowell"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2517/ML25174A277.pdf> .
+
+nrc:person-marzano
+    a nrc:Person ;
+    nrc:name "Matthew J. Marzano"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2517/ML25174A277.pdf> .
+
+nrc:org-nrc
+    a nrc:Organization ;
+    nrc:name "U.S. Nuclear Regulatory Commission"^^xsd:string .
+
+nrc:facility-palisades
+    a nrc:Facility ;
+    nrc:name "Palisades Nuclear Plant"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2517/ML25174A277.pdf> .
+
+nrc:org-doe
+    a nrc:Organization ;
+    nrc:name "U.S. Department of Energy"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2517/ML25174A277.pdf> .

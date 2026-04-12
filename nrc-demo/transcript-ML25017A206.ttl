@@ -1,0 +1,100 @@
+@prefix nrc: <http://example.com/nrc#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+
+nrc:meeting-decomm-overview-20250114
+    a nrc:Meeting ;
+    nrc:name "Strategic Programmatic Overview of Decommissioning and Low-Level Waste and Nuclear Materials Users"^^xsd:string ;
+    nrc:date "2025-01-14"^^xsd:date ;
+    nrc:location "Rockville, Maryland"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2501/ML25017A206.pdf> ;
+    nrc:chairedBy nrc:person-hanson ;
+    nrc:attendedBy nrc:person-wright ;
+    nrc:attendedBy nrc:person-caputo ;
+    nrc:attendedBy nrc:person-crowell ;
+    nrc:attendedBy nrc:person-marzano ;
+    nrc:attendedBy nrc:person-safford ;
+    nrc:attendedBy nrc:person-clark .
+
+nrc:person-hanson
+    a nrc:Person ;
+    nrc:name "Christopher T. Hanson"^^xsd:string ;
+    nrc:role "Chairman"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2501/ML25017A206.pdf> .
+
+nrc:person-wright
+    a nrc:Person ;
+    nrc:name "David A. Wright"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2501/ML25017A206.pdf> .
+
+nrc:person-caputo
+    a nrc:Person ;
+    nrc:name "Annie Caputo"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2501/ML25017A206.pdf> .
+
+nrc:person-crowell
+    a nrc:Person ;
+    nrc:name "Bradley R. Crowell"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2501/ML25017A206.pdf> .
+
+nrc:person-marzano
+    a nrc:Person ;
+    nrc:name "Matthew J. Marzano"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2501/ML25017A206.pdf> .
+
+nrc:person-safford
+    a nrc:Person ;
+    nrc:name "Carrie M. Safford"^^xsd:string ;
+    nrc:role "Secretary of the Commission"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2501/ML25017A206.pdf> .
+
+nrc:person-clark
+    a nrc:Person ;
+    nrc:name "Brooke Clark"^^xsd:string ;
+    nrc:role "General Counsel"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2501/ML25017A206.pdf> .
+
+nrc:org-nrc
+    a nrc:Organization ;
+    nrc:name "U.S. Nuclear Regulatory Commission"^^xsd:string .
+
+nrc:facility-palisades
+    a nrc:Facility ;
+    nrc:name "Palisades Nuclear Plant"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2501/ML25017A206.pdf> .
+
+nrc:org-nei
+    a nrc:Organization ;
+    nrc:name "Nuclear Energy Institute"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2501/ML25017A206.pdf> .
+
+nrc:org-doe
+    a nrc:Organization ;
+    nrc:name "U.S. Department of Energy"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2501/ML25017A206.pdf> .
+
+nrc:doc-secy-23-0055
+    a nrc:RegulatoryDocument ;
+    nrc:secyNumber "SECY-23-0055"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2501/ML25017A206.pdf> .
+
+nrc:doc-secy-24-0073
+    a nrc:RegulatoryDocument ;
+    nrc:secyNumber "SECY-24-0073"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2501/ML25017A206.pdf> .
+
+nrc:doc-secy-24-0085
+    a nrc:RegulatoryDocument ;
+    nrc:secyNumber "SECY-24-0085"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2501/ML25017A206.pdf> .

@@ -1,0 +1,96 @@
+@prefix nrc: <http://example.com/nrc#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+
+nrc:meeting-affirm-20250429
+    a nrc:Meeting ;
+    nrc:name "Affirmation Session"^^xsd:string ;
+    nrc:date "2025-04-29"^^xsd:date ;
+    nrc:location "Rockville, Maryland (via teleconference)"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2511/ML25119A143.pdf> ;
+    nrc:chairedBy nrc:person-wright ;
+    nrc:attendedBy nrc:person-caputo ;
+    nrc:attendedBy nrc:person-hanson ;
+    nrc:attendedBy nrc:person-crowell ;
+    nrc:attendedBy nrc:person-marzano ;
+    nrc:attendedBy nrc:person-safford ;
+    nrc:hasAgendaItem nrc:item-20250429-1 .
+
+nrc:person-wright
+    a nrc:Person ;
+    nrc:name "David A. Wright"^^xsd:string ;
+    nrc:role "Chairman"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2511/ML25119A143.pdf> .
+
+nrc:person-caputo
+    a nrc:Person ;
+    nrc:name "Annie Caputo"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2511/ML25119A143.pdf> .
+
+nrc:person-hanson
+    a nrc:Person ;
+    nrc:name "Christopher T. Hanson"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2511/ML25119A143.pdf> .
+
+nrc:person-crowell
+    a nrc:Person ;
+    nrc:name "Bradley R. Crowell"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2511/ML25119A143.pdf> .
+
+nrc:person-marzano
+    a nrc:Person ;
+    nrc:name "Matthew J. Marzano"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2511/ML25119A143.pdf> .
+
+nrc:person-safford
+    a nrc:Person ;
+    nrc:name "Carrie M. Safford"^^xsd:string ;
+    nrc:role "Secretary of the Commission"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2511/ML25119A143.pdf> .
+
+nrc:org-nrc
+    a nrc:Organization ;
+    nrc:name "U.S. Nuclear Regulatory Commission"^^xsd:string .
+
+nrc:facility-palisades
+    a nrc:Facility ;
+    nrc:name "Palisades Nuclear Plant"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2511/ML25119A143.pdf> .
+
+nrc:org-holtec
+    a nrc:Organization ;
+    nrc:name "Holtec International"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2511/ML25119A143.pdf> .
+
+nrc:doc-secy-24-0101
+    a nrc:RegulatoryDocument ;
+    nrc:secyNumber "SECY-24-0101"^^xsd:string ;
+    nrc:title "Holtec Decommissioning International, LLC; Holtec Palisades, LLC, and Palisades Energy, LLC (Palisades Nuclear Plant); Petition to Intervene and Request for Hearing in Operating License Transfer"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2511/ML25119A143.pdf> .
+
+nrc:item-20250429-1
+    a nrc:AgendaItem ;
+    nrc:itemNumber 1 ;
+    nrc:concerns nrc:doc-secy-24-0101 ;
+    nrc:resultedIn nrc:decision-20250429-1 ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2511/ML25119A143.pdf> .
+
+nrc:decision-20250429-1
+    a nrc:Decision ;
+    nrc:description "Approved"^^xsd:string ;
+    nrc:outcome "Approved"^^xsd:string ;
+    nrc:votedBy nrc:person-wright ;
+    nrc:votedBy nrc:person-caputo ;
+    nrc:votedBy nrc:person-hanson ;
+    nrc:votedBy nrc:person-crowell ;
+    nrc:votedBy nrc:person-marzano .

@@ -1,0 +1,80 @@
+@prefix nrc: <http://example.com/nrc#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+
+nrc:meeting-fuel-overview-20250513
+    a nrc:Meeting ;
+    nrc:name "Strategic Programmatic Overview of Fuel Facilities and Spent Fuel Storage and Transportation"^^xsd:string ;
+    nrc:date "2025-05-13"^^xsd:date ;
+    nrc:location "Rockville, Maryland"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2513/ML25139A570.pdf> ;
+    nrc:chairedBy nrc:person-wright ;
+    nrc:attendedBy nrc:person-caputo ;
+    nrc:attendedBy nrc:person-hanson ;
+    nrc:attendedBy nrc:person-crowell ;
+    nrc:attendedBy nrc:person-marzano ;
+    nrc:attendedBy nrc:person-safford ;
+    nrc:attendedBy nrc:person-spencer .
+
+nrc:person-wright
+    a nrc:Person ;
+    nrc:name "David A. Wright"^^xsd:string ;
+    nrc:role "Chairman"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2513/ML25139A570.pdf> .
+
+nrc:person-caputo
+    a nrc:Person ;
+    nrc:name "Annie Caputo"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2513/ML25139A570.pdf> .
+
+nrc:person-hanson
+    a nrc:Person ;
+    nrc:name "Christopher T. Hanson"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2513/ML25139A570.pdf> .
+
+nrc:person-crowell
+    a nrc:Person ;
+    nrc:name "Bradley R. Crowell"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2513/ML25139A570.pdf> .
+
+nrc:person-marzano
+    a nrc:Person ;
+    nrc:name "Matthew J. Marzano"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2513/ML25139A570.pdf> .
+
+nrc:person-safford
+    a nrc:Person ;
+    nrc:name "Carrie M. Safford"^^xsd:string ;
+    nrc:role "Secretary of the Commission"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2513/ML25139A570.pdf> .
+
+nrc:person-spencer
+    a nrc:Person ;
+    nrc:name "Mary Spencer"^^xsd:string ;
+    nrc:role "General Counsel"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2513/ML25139A570.pdf> .
+
+nrc:org-nrc
+    a nrc:Organization ;
+    nrc:name "U.S. Nuclear Regulatory Commission"^^xsd:string .
+
+nrc:org-doe
+    a nrc:Organization ;
+    nrc:name "U.S. Department of Energy"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2513/ML25139A570.pdf> .
+
+nrc:org-nuscale
+    a nrc:Organization ;
+    nrc:name "NuScale Power"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2513/ML25139A570.pdf> .

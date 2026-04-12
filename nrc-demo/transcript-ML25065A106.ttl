@@ -1,0 +1,91 @@
+@prefix nrc: <http://example.com/nrc#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+
+nrc:meeting-affirm-20250306
+    a nrc:Meeting ;
+    nrc:name "Affirmation Session"^^xsd:string ;
+    nrc:date "2025-03-06"^^xsd:date ;
+    nrc:location "Rockville, Maryland"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2506/ML25065A106.pdf> ;
+    nrc:chairedBy nrc:person-wright ;
+    nrc:attendedBy nrc:person-caputo ;
+    nrc:attendedBy nrc:person-hanson ;
+    nrc:attendedBy nrc:person-crowell ;
+    nrc:attendedBy nrc:person-marzano ;
+    nrc:attendedBy nrc:person-safford ;
+    nrc:hasAgendaItem nrc:item-20250306-1 .
+
+nrc:person-wright
+    a nrc:Person ;
+    nrc:name "David A. Wright"^^xsd:string ;
+    nrc:role "Chairman"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2506/ML25065A106.pdf> .
+
+nrc:person-caputo
+    a nrc:Person ;
+    nrc:name "Annie Caputo"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2506/ML25065A106.pdf> .
+
+nrc:person-hanson
+    a nrc:Person ;
+    nrc:name "Christopher T. Hanson"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2506/ML25065A106.pdf> .
+
+nrc:person-crowell
+    a nrc:Person ;
+    nrc:name "Bradley R. Crowell"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2506/ML25065A106.pdf> .
+
+nrc:person-marzano
+    a nrc:Person ;
+    nrc:name "Matthew J. Marzano"^^xsd:string ;
+    nrc:role "Commissioner"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2506/ML25065A106.pdf> .
+
+nrc:person-safford
+    a nrc:Person ;
+    nrc:name "Carrie M. Safford"^^xsd:string ;
+    nrc:role "Secretary of the Commission"^^xsd:string ;
+    nrc:affiliatedWith nrc:org-nrc ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2506/ML25065A106.pdf> .
+
+nrc:org-nrc
+    a nrc:Organization ;
+    nrc:name "U.S. Nuclear Regulatory Commission"^^xsd:string .
+
+nrc:org-doe
+    a nrc:Organization ;
+    nrc:name "U.S. Department of Energy"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2506/ML25065A106.pdf> .
+
+nrc:doc-secy-23-0003
+    a nrc:RegulatoryDocument ;
+    nrc:secyNumber "SECY-23-0003"^^xsd:string ;
+    nrc:title "United States Department of Energy (High Level Waste Repository) The Commission is being asked to act on a Memorandum and Order addressing the State of Nevada’s request to lift the suspension of the Yucca Mountain adjudicatory proceeding for the limited purpose of considering dispositive motions Nevada proposes to file. In its request, Nevada seeks resumption of the proceeding for the limited purpose of considering three motions for summary disposition it proposes to file challenging the U.S. Department of Energy’s application and, depending on the outcome of its summary disposition motions, a subsequent motion to disapprove the issuance of the construction authorization"^^xsd:string ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2506/ML25065A106.pdf> .
+
+nrc:item-20250306-1
+    a nrc:AgendaItem ;
+    nrc:itemNumber 1 ;
+    nrc:concerns nrc:doc-secy-23-0003 ;
+    nrc:resultedIn nrc:decision-20250306-1 ;
+    prov:wasDerivedFrom <https://www.nrc.gov/docs/ML2506/ML25065A106.pdf> .
+
+nrc:decision-20250306-1
+    a nrc:Decision ;
+    nrc:description "Approved"^^xsd:string ;
+    nrc:outcome "Approved"^^xsd:string ;
+    nrc:votedBy nrc:person-wright ;
+    nrc:votedBy nrc:person-caputo ;
+    nrc:votedBy nrc:person-hanson ;
+    nrc:votedBy nrc:person-crowell ;
+    nrc:votedBy nrc:person-marzano .
