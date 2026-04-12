@@ -267,6 +267,54 @@ svg { width: 100%; height: 100%; }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
 @keyframes toast-out { from { opacity: 1; } to { opacity: 0; } }
 
+/* ── Mobile / responsive ── */
+@media (max-width: 768px) {
+    #controls {
+        top: auto; bottom: 0; left: 0; right: 0; max-width: 100%;
+        flex-direction: column; gap: 0;
+        border-radius: 12px 12px 0 0;
+        max-height: 45vh; overflow-y: auto;
+        transition: transform 0.3s ease;
+    }
+    #controls.collapsed { transform: translateY(calc(100% - 48px)); }
+    #controls .panel { border-radius: 0; border-left: none; border-right: none; border-bottom: none; }
+    #controls .panel:first-child { border-radius: 12px 12px 0 0; }
+    .panel h1 { font-size: 13px; }
+    #search { font-size: 16px; /* prevents iOS zoom */ }
+    .legend { max-height: 100px; }
+    .btn-row { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; }
+    .btn { white-space: nowrap; flex-shrink: 0; }
+
+    #analytics {
+        position: fixed; top: auto; bottom: 0; left: 0; right: 0; width: 100%;
+        border-radius: 12px 12px 0 0; max-height: 50vh;
+        padding: 14px 16px 20px;
+    }
+    #analytics.visible { display: block; }
+
+    #info {
+        bottom: auto; top: 8px; left: 8px; right: 8px; max-width: 100%;
+    }
+
+    #stats { bottom: auto; top: 8px; right: 8px; left: auto; }
+
+    .node-tooltip { display: none !important; /* touch devices don't hover */ }
+}
+
+/* Mobile toggle handle */
+.mobile-handle {
+    display: none; width: 40px; height: 4px; border-radius: 2px;
+    background: rgba(255,255,255,0.2); margin: 8px auto 4px;
+}
+@media (max-width: 768px) { .mobile-handle { display: block; } }
+
+/* Touch-friendly hit targets */
+@media (pointer: coarse) {
+    .btn { padding: 8px 12px; font-size: 13px; }
+    .legend-item { padding: 6px 8px; font-size: 13px; }
+    .influential-item { padding: 8px 0; font-size: 14px; }
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -278,6 +326,7 @@ svg { width: 100%; height: 100%; }
 
 <div id="controls">
     <div class="panel">
+        <div class="mobile-handle" id="mobile-handle"></div>
         <h1>dregs</h1>
         <div class="subtitle" id="graph-info">knowledge graph</div>
     </div>
@@ -937,6 +986,136 @@ document.addEventListener('keydown', (ev) => {
         infoPanel.style.display = 'none';
     }
 });
+
+// ── MOBILE: panel toggle ──
+const controlsEl = document.getElementById('controls');
+const mobileHandle = document.getElementById('mobile-handle');
+const isMobile = window.innerWidth <= 768;
+
+if (isMobile) {
+    controlsEl.classList.add('collapsed');
+    mobileHandle.addEventListener('click', () => controlsEl.classList.toggle('collapsed'));
+
+    // Swipe down on controls to collapse
+    let touchStartY = 0;
+    controlsEl.addEventListener('touchstart', (ev) => {
+        touchStartY = ev.touches[0].clientY;
+    }, { passive: true });
+    controlsEl.addEventListener('touchend', (ev) => {
+        const dy = ev.changedTouches[0].clientY - touchStartY;
+        if (dy > 40) controlsEl.classList.add('collapsed');
+        if (dy < -40) controlsEl.classList.remove('collapsed');
+    }, { passive: true });
+}
+
+// ── TOUCH: pinch-to-zoom + drag-to-pan + tap ──
+let lastTouchDist = 0;
+let lastTouchMid = { x: 0, y: 0 };
+let touchDragging = null;
+let touchMoved = false;
+
+svg.addEventListener('touchstart', (ev) => {
+    if (ev.touches.length === 2) {
+        // Pinch start
+        const dx = ev.touches[1].clientX - ev.touches[0].clientX;
+        const dy = ev.touches[1].clientY - ev.touches[0].clientY;
+        lastTouchDist = Math.sqrt(dx*dx + dy*dy);
+        lastTouchMid = {
+            x: (ev.touches[0].clientX + ev.touches[1].clientX) / 2,
+            y: (ev.touches[0].clientY + ev.touches[1].clientY) / 2,
+        };
+        ev.preventDefault();
+    } else if (ev.touches.length === 1) {
+        touchMoved = false;
+        const touch = ev.touches[0];
+        const rect = svg.getBoundingClientRect();
+        const sx = (touch.clientX - rect.left - transform.x) / transform.k;
+        const sy = (touch.clientY - rect.top - transform.y) / transform.k;
+
+        // Check if touching a node
+        let hitNode = null;
+        for (const n of nodes) {
+            const dx = n.x - sx, dy = n.y - sy;
+            if (dx*dx + dy*dy < (n.size + 10) * (n.size + 10)) {
+                hitNode = n;
+                break;
+            }
+        }
+
+        if (hitNode) {
+            touchDragging = hitNode;
+            alpha = 0.3;
+        } else {
+            // Pan
+            panStart = { x: touch.clientX - transform.x, y: touch.clientY - transform.y };
+            isPanning = true;
+        }
+    }
+}, { passive: false });
+
+svg.addEventListener('touchmove', (ev) => {
+    touchMoved = true;
+    if (ev.touches.length === 2) {
+        // Pinch zoom
+        ev.preventDefault();
+        const dx = ev.touches[1].clientX - ev.touches[0].clientX;
+        const dy = ev.touches[1].clientY - ev.touches[0].clientY;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const mid = {
+            x: (ev.touches[0].clientX + ev.touches[1].clientX) / 2,
+            y: (ev.touches[0].clientY + ev.touches[1].clientY) / 2,
+        };
+
+        if (lastTouchDist > 0) {
+            const scale = dist / lastTouchDist;
+            const rect = svg.getBoundingClientRect();
+            const mx = mid.x - rect.left;
+            const my = mid.y - rect.top;
+            transform.x = mx - (mx - transform.x) * scale;
+            transform.y = my - (my - transform.y) * scale;
+            transform.k = Math.max(0.1, Math.min(5, transform.k * scale));
+
+            // Also pan with the midpoint
+            transform.x += mid.x - lastTouchMid.x;
+            transform.y += mid.y - lastTouchMid.y;
+
+            applyTransform();
+        }
+        lastTouchDist = dist;
+        lastTouchMid = mid;
+    } else if (ev.touches.length === 1) {
+        const touch = ev.touches[0];
+        if (touchDragging) {
+            ev.preventDefault();
+            const rect = svg.getBoundingClientRect();
+            touchDragging.x = (touch.clientX - rect.left - transform.x) / transform.k;
+            touchDragging.y = (touch.clientY - rect.top - transform.y) / transform.k;
+            touchDragging.vx = 0; touchDragging.vy = 0;
+            alpha = 0.3;
+        } else if (isPanning) {
+            transform.x = touch.clientX - panStart.x;
+            transform.y = touch.clientY - panStart.y;
+            applyTransform();
+        }
+    }
+}, { passive: false });
+
+svg.addEventListener('touchend', (ev) => {
+    if (ev.touches.length < 2) lastTouchDist = 0;
+
+    if (touchDragging && !touchMoved) {
+        // Tap on node = pin
+        onNodeClick(touchDragging);
+    }
+
+    touchDragging = null;
+    isPanning = false;
+}, { passive: true });
+
+// Prevent default touch behavior on the SVG (no bounce scroll)
+svg.addEventListener('touchmove', (ev) => {
+    if (ev.touches.length >= 1) ev.preventDefault();
+}, { passive: false });
 
 // ── ANNOTATIONS (SSE from agent) ──
 const annotationLayer = document.createElementNS(ns, 'g');
