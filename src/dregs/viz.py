@@ -834,13 +834,23 @@ communities.forEach(c => {
         <span class="legend-label">${topLabels || 'Topic ' + c.id}</span>
         <span class="legend-meta">${c.nodeCount}</span>`;
     item.addEventListener('click', () => {
-        if (activeCommunities.has(c.id)) {
-            activeCommunities.delete(c.id);
-            item.classList.add('dimmed');
+        const allActive = activeCommunities.size === communities.length;
+        const onlyThis = activeCommunities.size === 1 && activeCommunities.has(c.id);
+
+        if (onlyThis || (!allActive && activeCommunities.has(c.id))) {
+            // Clicking the sole selected topic (or re-clicking selected) → restore all
+            activeCommunities.clear();
+            communities.forEach(cc => activeCommunities.add(cc.id));
         } else {
+            // Select only this topic
+            activeCommunities.clear();
             activeCommunities.add(c.id);
-            item.classList.remove('dimmed');
         }
+
+        // Update dimmed state on all legend items
+        Object.entries(legendItems).forEach(([id, el]) => {
+            el.classList.toggle('dimmed', !activeCommunities.has(Number(id)));
+        });
         applyCommunityFilter();
     });
     legendEl.appendChild(item);
