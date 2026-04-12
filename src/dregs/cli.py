@@ -321,5 +321,33 @@ def drop(db: Path | None, graph: str, yes: bool, as_json: bool):
         store.close()
 
 
+@cli.command()
+@click.option("--db", "-d", type=click.Path(path_type=Path), default=None, help="Path or URL to database (or set DREGS_DSN).")
+@click.option("--port", "-p", type=int, default=7171, help="Port to serve on.")
+@click.option("--graph", "-g", default=None, help="Visualize specific named graph only.")
+@click.option("--no-open", is_flag=True, help="Don't auto-open browser.")
+def viz(db: Path | None, port: int, graph: str | None, no_open: bool):
+    """Launch interactive knowledge graph visualizer.
+
+    Opens a force-directed graph in your browser showing all entities
+    and their relationships. Hover to highlight connections, click for
+    details, search to filter, drag to rearrange.
+
+    \b
+    Keys:
+      /       Focus search
+      Escape  Clear search & info panel
+      Scroll  Zoom in/out
+      Drag    Pan (background) or move node
+    """
+    from dregs.viz import serve_viz
+
+    store = DregsStore(db)
+    try:
+        serve_viz(store, port=port, graph_uri=graph, open_browser=not no_open)
+    finally:
+        store.close()
+
+
 if __name__ == "__main__":
     cli()
