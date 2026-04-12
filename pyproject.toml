@@ -24,6 +24,7 @@ build-backend = "hatchling.build"
 packages = ["src/dregs"]
 
 [project.optional-dependencies]
+viz = ["networkx>=3.0"]
 test = ["pytest>=7.0"]
 
 [tool.pytest.ini_options]
