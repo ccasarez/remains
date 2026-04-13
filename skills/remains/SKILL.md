@@ -9,28 +9,56 @@ description: >
 
 # Remains — Fact Store
 
-remains is an RDF triple store backed by a remote Turso database (`REMAINS_DSN` is preconfigured).
+remains is an RDF triple store backed by a remote Turso database
+(`REMAINS_DSN` is preconfigured).
+
+**The CLI is the source of truth.** Run `remains --help` and
+`remains <command> --help` whenever you need the authoritative list of
+commands and flags. The notes below cover strategy (when to call what) and
+patterns that `--help` cannot convey.
 
 ## When to Use
 
-- **Recording facts**: When the user shares information, extracts data from documents, or asks you to remember something — store it as RDF triples via `remains load`.
-- **Recalling facts**: When answering questions, check remains first with `remains query` before saying "I don't know" or searching elsewhere.
-- **Every session**: At the start of complex tasks, query remains for relevant context.
+- **Recording facts**: When the user shares information, extracts data from
+  documents, or asks you to remember something — store it as RDF triples via
+  `remains load`.
+- **Recalling facts**: When answering questions, check remains first with
+  `remains query` before saying "I don't know" or searching elsewhere.
+- **Every session**: At the start of complex tasks, query remains for
+  relevant context.
+
+## How the store is organized
+
+remains has three fixed graphs: the default data graph, `urn:ontology`, and
+`urn:shacl`. You do not create named graphs per load — every `remains load`
+inserts into the default data graph, and validation runs against the
+ontology + shapes automatically. Grouping is layered on top via two
+primitives:
+
+- **Domains** group ontology classes for scoped extraction prompts. Create
+  with `remains create-domain`, list with `remains domains`, then narrow a
+  prompt with `remains prompt --domain <slug>`.
+- **Topics** group data entities. Create with `remains create-topic`, list
+  with `remains topics`.
+
+Use one database per domain when you need hard isolation: set `REMAINS_DSN`
+to a different path and `remains init` a fresh store.
 
 ## Discovering the Schema
 
-**Never assume what classes or properties exist.** Always discover dynamically:
+**Never assume what classes or properties exist.** Always discover
+dynamically before writing any triples:
 
 ```bash
-# Get a human-readable summary of all entity types, relationships, and properties
-remains prompt
+remains prompt                     # whole ontology
+remains prompt --domain people     # scoped to a domain
 ```
 
-Run this before writing any triples so you use the correct classes, properties, and prefixes.
+This emits a human-readable summary of entity types, relationships, and
+properties. Use the exact prefixes, class names, and property names it
+returns.
 
-## Key Commands
-
-### Query facts (SPARQL)
+## Querying facts (SPARQL)
 
 ```bash
 # List all classes/types in use
@@ -42,18 +70,22 @@ remains query "SELECT ?s ?p ?o WHERE { ?s ?p ?o . FILTER(CONTAINS(LCASE(STR(?s))
 # Get everything about a subject
 remains query "SELECT ?p ?o WHERE { <http://example.com/nrc#SomeEntity> ?p ?o }"
 
-# Full text search in literals
+# Full-text search in literals
 remains query "SELECT ?s ?p ?o WHERE { ?s ?p ?o . FILTER(CONTAINS(LCASE(STR(?o)), 'keyword')) } LIMIT 20"
 ```
 
-### Record facts
+`remains query --format json|turtle|table` switches output. `CONSTRUCT` and
+`ASK` also work.
 
-1. First, discover the schema: `remains prompt`
-2. Write valid Turtle (.ttl) using only classes and properties from the schema output
-3. Load with a descriptive graph name
+## Recording facts
+
+1. Discover the schema: `remains prompt`.
+2. Write valid Turtle using only classes and properties from the schema
+   output.
+3. Load it. Validation runs automatically against the ontology and SHACL
+   shapes; there is no bypass flag.
 
 ```bash
-# Write triples (use prefixes and types from the schema output)
 cat > /tmp/facts.ttl << 'EOF'
 @prefix ex: <http://example.com/ns#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
@@ -62,42 +94,62 @@ ex:SomeEntity a ex:SomeClass ;
     ex:name "Example"^^xsd:string .
 EOF
 
-# Load into a named graph (validates against schema by default)
-remains load /tmp/facts.ttl --graph descriptive-graph-name
+remains load /tmp/facts.ttl
 ```
 
-### Inspect the store
+If validation fails, `remains load` exits non-zero and prints SHACL
+violations. Read them, fix the Turtle, retry.
+
+To group these new entities with other related ones for later recall or
+visualization, create a topic:
 
 ```bash
-remains info          # Stats: triple count, graphs
-remains graphs        # List all named graphs
-remains export --type schema   # Show the ontology as Turtle
-remains export --type shacl    # Show validation shapes
-remains export -g graph-name   # Export a specific graph as Turtle
+remains create-topic q1-facts --name "Q1 Facts" \
+    --member http://example.com/ns#SomeEntity
 ```
+
+## Inspecting the store
+
+```bash
+remains info                       # triple counts, domains, topics
+remains domains                    # list domains
+remains topics                     # list topics
+remains export --what data         # dump user data as Turtle
+remains export --what ontology     # dump user ontology (no system triples)
+remains export --what shacl        # dump user shapes (no system triples)
+remains export --what all          # dump everything
+```
+
+See `remains export --help` for the full list of `--what` values.
 
 ## Graph Visualization
 
 ### Launch the visualizer
 
 ```bash
-remains viz                       # Opens browser on :7171
-remains viz --port 8080           # Custom port
-remains viz -g my-graph           # Specific named graph only
-remains viz --no-open             # Headless (for remote/proxy access)
+remains viz                          # Opens browser on :7171
+remains viz --port 8080              # Custom port
+remains viz --no-open                # Headless (for remote/proxy access)
+remains viz -o graph.html            # Static HTML export (no server)
 ```
+
+Scope the view with `--query "CONSTRUCT { ... }"` or
+`--focus <uri> [--hops N]` (mutually exclusive). See `remains viz --help`.
 
 The visualizer shows an interactive force-directed graph with:
 - **Community detection** (Louvain) — nodes colored by topic cluster
 - **Betweenness centrality** — node size shows bridge importance
 - **Structural gap analysis** — identifies disconnected topic areas
-- **Analytics panel** (toggle with ◈ button) — modularity, bias score, influential nodes, gaps
-- **Topics sidebar** — click a topic to isolate it, click again to restore all
+- **Analytics panel** (toggle with ◈ button) — modularity, bias score,
+  influential nodes, gaps
+- **Topics sidebar** — click a topic to isolate it, click again to restore
+  all
 
 ### Annotate the graph (agent remote control)
 
-The agent can control the visualization in real-time. Annotations are sent via HTTP
-and rendered instantly in all connected browsers via Server-Sent Events.
+The agent can control the visualization in real-time. Annotations are sent
+via HTTP and rendered instantly in all connected browsers via Server-Sent
+Events.
 
 **Start the viz server first**, then use `remains annotate`:
 
@@ -108,7 +160,6 @@ remains annotate toast -t "Analysis of Q1 meetings"
 # Label communities in the Topics sidebar
 remains annotate label-community -c 0 -t "👥 Core Team"
 remains annotate label-community -c 1 -t "📋 Project Alpha"
-remains annotate label-community -c 2 -t "🔬 Research Papers"
 
 # Highlight specific nodes (by label or ID), dim everything else
 remains annotate highlight-nodes -n "Alice" -n "Bob"
@@ -135,11 +186,13 @@ remains annotate clear
 | `highlight-community` | `-c ID` | Highlight a community, dim others |
 | `clear` | (none) | Remove all annotations, restore full view |
 
-**Optional flags:** `--color "#hex"`, `--duration SECONDS` (toast), `--neighbors` (highlight-nodes).
+Optional flags: `--color "#hex"`, `--duration SECONDS` (toast), `--neighbors`
+(highlight-nodes). See `remains annotate --help` for the full list.
 
-**How it works:** POST to `/api/annotate` with JSON. The viz server broadcasts via SSE
-to all connected browsers. Annotations are stored in server memory and replayed to
-new clients on connect. `clear` resets the history.
+**How it works:** POST to `/api/annotate` with JSON. The viz server
+broadcasts via SSE to all connected browsers. Annotations are stored in
+server memory and replayed to new clients on connect. `clear` resets the
+history.
 
 ```bash
 # Equivalent curl (for scripts or non-CLI agents):
@@ -188,10 +241,21 @@ remains annotate toast -t "This cluster has no connection to Topic 2"
 ## Rules
 
 1. **Always query before answering** if the question might be in the store.
-2. **Always record** when the user provides structured facts or asks you to remember.
-3. **Always discover the schema first** (`remains prompt`) before writing triples — never hardcode class/property names from memory.
-4. **Use descriptive graph names** (e.g., `meeting-2026-03-04`, `user-preferences`).
-5. **Validation is mandatory** — every load is validated against the schema. There is no bypass flag.
-6. **If the ontology doesn't cover a domain**, tell the user and offer to extend it.
-7. **When visualizing**, always label communities via `remains annotate label-community` after launching `remains viz` — the auto-generated labels are just top node names and need human-readable descriptions.
-8. **Annotations persist in server memory** — they replay to new browser clients. Use `remains annotate clear` to reset.
+2. **Always record** when the user provides structured facts or asks you to
+   remember.
+3. **Always discover the schema first** (`remains prompt`) before writing
+   triples — never hardcode class or property names from memory.
+4. **Group related entities with topics** (`remains create-topic`) so they
+   are easy to recall and visualize later.
+5. **Validation is mandatory** — every load is validated against the
+   ontology and SHACL shapes. There is no bypass flag.
+6. **If the ontology doesn't cover a domain**, tell the user and offer to
+   extend it with `remains update-ontology`.
+7. **When visualizing**, always label communities via
+   `remains annotate label-community` after launching `remains viz` — the
+   auto-generated labels are just top node names and need human-readable
+   descriptions.
+8. **Annotations persist in server memory** — they replay to new browser
+   clients. Use `remains annotate clear` to reset.
+9. **When a flag or argument isn't documented here, check
+   `remains <command> --help`.** The CLI is the authoritative reference.
