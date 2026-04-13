@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Optional
 
 from rdflib import RDF, RDFS, Graph, Literal, Namespace, URIRef, BNode
-from rdflib.collection import Collection
 from rdflib.term import Node
 
 from dregs.models import Triple, ValidationResult
@@ -601,12 +600,6 @@ def run_validation(
     relationships when evaluating ``sh:class`` constraints. ``reasoning_regime``
     controls the pre-validation inference pyshacl applies (``none``, ``rdfs``,
     ``owlrl``, ``both``).
-
-    Before calling pyshacl we synthesise one SHACL Core ``NodeShape`` per
-    abstract class (any class with at least one declared ``rdfs:subClassOf``
-    child) so that instances typed only with an abstract parent are
-    rejected. This is the ABSTRACT_TYPE check, expressed in pure SHACL
-    Core via ``sh:targetClass`` + ``sh:or`` + ``sh:class``.
     """
     from pyshacl import validate
 
@@ -618,16 +611,9 @@ def run_validation(
 
     ont_graph = schema_graph if schema_graph is not None and len(schema_graph) > 0 else None
 
-    effective_shacl = Graph()
-    for t in shacl_graph:
-        effective_shacl.add(t)
-    if ont_graph is not None:
-        for t in _abstract_class_shapes(ont_graph):
-            effective_shacl.add(t)
-
     conforms, results_graph, results_text = validate(
         data_graph,
-        shacl_graph=effective_shacl,
+        shacl_graph=shacl_graph,
         ont_graph=ont_graph,
         inference=reasoning_regime,
         advanced=True,
@@ -641,56 +627,6 @@ def run_validation(
         result.shacl_violations = _parse_shacl_report(results_graph, results_text)
 
     return result
-
-
-def _abstract_class_shapes(schema_graph: Graph) -> Graph:
-    """Build SHACL Core shapes rejecting instances of abstract classes.
-
-    For every class ``P`` that has at least one declared ``rdfs:subClassOf``
-    child, produce::
-
-        [] a sh:NodeShape ;
-            sh:targetClass P ;
-            sh:or ( [ sh:class C1 ] [ sh:class C2 ] ... ) ;
-            sh:message "..." .
-
-    ``sh:targetClass`` already uses ``rdfs:subClassOf*`` closure (SHACL
-    spec §2.1.3.2), so SHACL-instances of ``C1``/``C2``/... are targeted
-    too and satisfy the ``sh:or`` trivially. Only direct instances of the
-    abstract parent (with no leaf-class type) fail the constraint.
-    """
-    shapes = Graph()
-
-    children: dict[URIRef, set[URIRef]] = {}
-    for child, _, parent in schema_graph.triples((None, RDFS.subClassOf, None)):
-        if isinstance(child, URIRef) and isinstance(parent, URIRef):
-            children.setdefault(parent, set()).add(child)
-
-    for parent, child_set in children.items():
-        shape = BNode()
-        shapes.add((shape, RDF.type, SH.NodeShape))
-        shapes.add((shape, SH.targetClass, parent))
-
-        branches = []
-        for child in sorted(child_set, key=str):
-            branch = BNode()
-            shapes.add((branch, SH["class"], child))
-            branches.append(branch)
-
-        or_list = BNode()
-        Collection(shapes, or_list, branches)
-        shapes.add((shape, SH["or"], or_list))
-
-        shapes.add((
-            shape,
-            SH.message,
-            Literal(
-                f"Instance typed as abstract class {_short(parent)}; "
-                f"use a leaf subclass."
-            ),
-        ))
-
-    return shapes
 
 
 def _parse_shacl_report(results_graph, results_text: str) -> list[str]:
