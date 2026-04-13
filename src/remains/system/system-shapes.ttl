@@ -30,48 +30,6 @@ remains-sh:ontology a owl:Ontology ;
         sh:namespace "http://www.w3.org/ns/prov#"^^xsd:anyURI ;
     ] .
 
-# Topic must have label and at least one member
-remains-sh:TopicShape a sh:NodeShape ;
-    sh:targetClass remains:Topic ;
-    sh:property [
-        sh:path rdfs:label ;
-        sh:minCount 1 ;
-        sh:datatype xsd:string ;
-        sh:message "Topic must have rdfs:label"
-    ] ;
-    sh:property [
-        sh:path remains:member ;
-        sh:minCount 1 ;
-        sh:nodeKind sh:IRI ;
-        sh:message "Topic must have at least one member"
-    ] ;
-    sh:property [
-        sh:path remains:createdBy ;
-        sh:maxCount 1 ;
-        sh:datatype xsd:string
-    ] ;
-    sh:property [
-        sh:path remains:modularity ;
-        sh:maxCount 1 ;
-        sh:datatype xsd:decimal
-    ] .
-
-# Domain must have label and at least one class
-remains-sh:DomainShape a sh:NodeShape ;
-    sh:targetClass remains:Domain ;
-    sh:property [
-        sh:path rdfs:label ;
-        sh:minCount 1 ;
-        sh:datatype xsd:string ;
-        sh:message "Domain must have rdfs:label"
-    ] ;
-    sh:property [
-        sh:path remains:includesClass ;
-        sh:minCount 1 ;
-        sh:nodeKind sh:IRI ;
-        sh:message "Domain must include at least one class"
-    ] .
-
 # All instances of RequiresDisplayName classes must have a display property
 remains-sh:DisplayNameShape a sh:NodeShape ;
     sh:targetClass remains:RequiresDisplayName ;

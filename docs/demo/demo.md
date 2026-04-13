@@ -3,7 +3,7 @@
 *2026-04-12T21:49:54Z by Showboat 0.6.1*
 <!-- showboat-id: a14a3ade-cf2a-4028-8a95-1943b3035bcc -->
 
-One SQLite database = one knowledge domain. 3 fixed graphs: default (data + topics), urn:ontology (system + user vocabulary), urn:shacl (system + user shapes). System ontology ships remains:Topic, remains:Domain, remains:RequiresDisplayName. Multiple domains = multiple databases.
+One SQLite database. 3 fixed graphs: default (data), urn:ontology (system + user vocabulary), urn:shacl (system + user shapes). System ontology ships remains:RequiresDisplayName.
 
 ## Tests
 
@@ -29,20 +29,12 @@ tests/test_core.py::TestLoad::test_load_rejects_bad_data PASSED          [ 13%]
 tests/test_core.py::TestLoad::test_no_named_graphs_created PASSED        [ 15%]
 tests/test_core.py::TestPrompt::test_prompt_includes_user_classes PASSED [ 17%]
 tests/test_core.py::TestPrompt::test_prompt_excludes_system_classes PASSED [ 19%]
-tests/test_core.py::TestPromptDomain::test_prompt_domain_filters_classes PASSED [ 21%]
-tests/test_core.py::TestPromptDomain::test_prompt_domain_includes_properties PASSED [ 23%]
 tests/test_core.py::TestNamespaceProtection::test_update_ontology_rejects_system_namespace PASSED [ 25%]
 tests/test_core.py::TestNamespaceProtection::test_update_shacl_rejects_system_namespace PASSED [ 27%]
 tests/test_core.py::TestExport::test_export_data_only PASSED             [ 29%]
 tests/test_core.py::TestExport::test_export_ontology_user_only PASSED    [ 31%]
 tests/test_core.py::TestExport::test_export_all PASSED                   [ 33%]
 tests/test_core.py::TestInfo::test_stats_structure PASSED                [ 35%]
-tests/test_core.py::TestDomains::test_create_domain PASSED               [ 37%]
-tests/test_core.py::TestDomains::test_add_to_domain PASSED               [ 39%]
-tests/test_core.py::TestDomains::test_list_domains_empty PASSED          [ 41%]
-tests/test_core.py::TestTopics::test_create_topic PASSED                 [ 43%]
-tests/test_core.py::TestTopics::test_topic_stored_in_default_graph PASSED [ 45%]
-tests/test_core.py::TestTopics::test_list_topics_empty PASSED            [ 47%]
 tests/test_core.py::TestDisplayNames::test_display_name_from_rdfs_label PASSED [ 49%]
 tests/test_core.py::TestDisplayNames::test_display_name_fallback_to_uri PASSED [ 50%]
 tests/test_core.py::TestDisplayNames::test_display_name_uri_path_fallback PASSED [ 52%]
@@ -111,8 +103,6 @@ Created:   2026-04-12T21:50:29.270950+00:00
 Data:      23 triples
 Ontology:  151 triples
 SHACL:     96 triples
-Domains:   0
-Topics:    0
 ```
 
 ## Prompt — Full Ontology
@@ -148,58 +138,6 @@ Do NOT invent new types. Output as Turtle (TTL) format.
 ### Meeting (subclass of Activity)
   Definition: A Meeting is an Activity where agents convene to discuss topics.
   example: Weekly standup on 2026-04-01
-```
-
-## Domains — Scoped Extraction
-
-```bash
-export PATH=$HOME/.local/bin:$PATH && REMAINS_DSN=/tmp/demo.db remains create-domain people -n People -c http://example.com/ontology#Person -c http://example.com/ontology#Organization 2>/dev/null && REMAINS_DSN=/tmp/demo.db remains domains 2>/dev/null
-```
-
-```output
-Created domain 'people' with 2 classes
-  people               2 classes  "People"
-```
-
-```bash
-export PATH=$HOME/.local/bin:$PATH && REMAINS_DSN=/tmp/demo.db remains prompt --domain people 2>/dev/null
-```
-
-```output
-# Ontology Schema for Extraction (domain: people)
-
-Extract ONLY the following entity types and relationships.
-Do NOT invent new types. Output as Turtle (TTL) format.
-
-## Entity Types
-### Organization (subclass of Agent)
-  Definition: An Organization is an Agent representing a company, team, or institution.
-  example: Engineering Team
-  example: Acme Corp
-
-### Person (subclass of Agent)
-  Definition: A Person is an Agent representing a named individual.
-  example: John Smith, software engineer at Acme Corp
-  example: Jane Doe, VP of Engineering
-
-## Relationships (Object Properties)
-- attendedBy: Meeting -> Person
-- authored: Person -> Document
-- madeBy: Decision -> Person
-- worksAt: Person -> Organization
-
-## Data Properties
-```
-
-## Topics
-
-```bash
-export PATH=$HOME/.local/bin:$PATH && REMAINS_DSN=/tmp/demo.db remains create-topic leadership -n 'Leadership Team' -m http://example.com/ontology#alice -m http://example.com/ontology#bob 2>/dev/null && REMAINS_DSN=/tmp/demo.db remains topics 2>/dev/null
-```
-
-```output
-Created topic 'leadership' with 2 members
-  leadership           2 members  "Leadership Team"
 ```
 
 ## Namespace Protection
@@ -239,7 +177,6 @@ export PATH=$HOME/.local/bin:$PATH && REMAINS_DSN=/tmp/demo.db remains export --
 ```
 
 ```output
-@prefix remains: <urn:remains:system#> .
 @prefix ex: <http://example.com/ontology#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
@@ -257,6 +194,4 @@ ex:doc-arch-review a ex:Document ;
     ex:authored ex:person-john ;
     ex:title "Q3 Architecture Review" ;
     prov:wasDerivedFrom <http://example.com/docs/standup-2026-04-01.md> .
-
-<urn:remains:topic#leadership> a remains:Topic ;
 ```

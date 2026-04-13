@@ -1,10 +1,10 @@
-"""Tests for remains: 3 fixed graphs, system/user split, topics, domains."""
+"""Tests for remains: 3 fixed graphs, system/user split."""
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
-from rdflib import Graph, Literal, URIRef, Namespace, RDF, RDFS, OWL, XSD
+from rdflib import Graph, Namespace, RDF, RDFS
 
 from remains.store import RemainsStore
 
@@ -46,7 +46,7 @@ class TestInit:
         db.close()
 
     def test_init_loads_system_ontology(self, tmp_path):
-        """System ontology (remains:Topic, remains:Domain, etc.) must be in urn:ontology."""
+        """System ontology (remains:RequiresDisplayName, etc.) must be in urn:ontology."""
         db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=EXAMPLES_ROOT / "ontology.ttl",
@@ -54,19 +54,11 @@ class TestInit:
         )
 
         conn = db._connect()
-        # Check remains:Topic class exists
-        topic_exists = conn.execute(
+        marker_exists = conn.execute(
             "SELECT COUNT(*) FROM triples WHERE subject = ? AND predicate = ? AND graph = ?",
-            (str(REMAINS.Topic), str(RDF.type), "urn:ontology"),
+            (str(REMAINS.RequiresDisplayName), str(RDF.type), "urn:ontology"),
         ).fetchone()[0]
-        assert topic_exists > 0
-
-        # Check remains:Domain class exists
-        domain_exists = conn.execute(
-            "SELECT COUNT(*) FROM triples WHERE subject = ? AND predicate = ? AND graph = ?",
-            (str(REMAINS.Domain), str(RDF.type), "urn:ontology"),
-        ).fetchone()[0]
-        assert domain_exists > 0
+        assert marker_exists > 0
         db.close()
 
     def test_init_loads_user_ontology(self, tmp_path):
@@ -87,7 +79,7 @@ class TestInit:
         db.close()
 
     def test_init_loads_system_shapes(self, tmp_path):
-        """System shapes (remains-sh:TopicShape, etc.) must be in urn:shacl."""
+        """System shapes (remains-sh:DisplayNameShape, etc.) must be in urn:shacl."""
         db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=EXAMPLES_ROOT / "ontology.ttl",
@@ -95,11 +87,11 @@ class TestInit:
         )
 
         conn = db._connect()
-        topic_shape = conn.execute(
+        display_shape = conn.execute(
             "SELECT COUNT(*) FROM triples WHERE subject = ? AND graph = ?",
-            (str(REMAINS_SH.TopicShape), "urn:shacl"),
+            (str(REMAINS_SH.DisplayNameShape), "urn:shacl"),
         ).fetchone()[0]
-        assert topic_shape > 0
+        assert display_shape > 0
         db.close()
 
     def test_init_loads_user_shapes(self, tmp_path):
@@ -291,61 +283,11 @@ class TestPrompt:
         assert "Meeting" in output
 
     def test_prompt_excludes_system_classes(self, store):
-        """Prompt should NOT include system classes (Topic, Domain)."""
+        """Prompt should NOT include system classes."""
         from remains.prompt import prompt_from_store
 
         output = prompt_from_store(store)
-        assert "Topic" not in output
-        assert "Domain" not in output
-
-
-class TestPromptDomain:
-    """remains prompt --domain filters to domain classes only."""
-
-    @pytest.fixture
-    def store_with_domain(self, tmp_path):
-        db = RemainsStore(tmp_path / "test.db")
-        db.init(
-            ontology_path=EXAMPLES_ROOT / "ontology.ttl",
-            shacl_path=EXAMPLES_ROOT / "shapes.ttl",
-        )
-        # Add a domain to urn:ontology
-        conn = db._connect()
-        domain_uri = "urn:remains:domain#people"
-        triples = [
-            (domain_uri, str(RDF.type), str(REMAINS.Domain), "uri", "", "", "urn:ontology"),
-            (domain_uri, str(RDFS.label), "People", "typed_literal", str(XSD.string), "", "urn:ontology"),
-            (domain_uri, str(REMAINS.includesClass), str(EX.Person), "uri", "", "", "urn:ontology"),
-            (domain_uri, str(REMAINS.includesClass), str(EX.Organization), "uri", "", "", "urn:ontology"),
-        ]
-        conn.executemany(
-            """INSERT OR IGNORE INTO triples
-               (subject, predicate, object, object_type, datatype, lang, graph)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            triples,
-        )
-        conn.commit()
-        yield db
-        db.close()
-
-    def test_prompt_domain_filters_classes(self, store_with_domain):
-        """Prompt with domain should only include domain classes as entity types."""
-        from remains.prompt import prompt_from_store
-
-        output = prompt_from_store(store_with_domain, domain="people")
-        # Classes in domain appear as headers
-        assert "### Person" in output
-        assert "### Organization" in output
-        # Classes NOT in domain should not appear as headers
-        assert "### Meeting" not in output
-        assert "### Document" not in output
-
-    def test_prompt_domain_includes_properties(self, store_with_domain):
-        """Prompt with domain should include properties relevant to domain classes."""
-        from remains.prompt import prompt_from_store
-
-        output = prompt_from_store(store_with_domain, domain="people")
-        assert "worksAt" in output  # Person -> Organization
+        assert "RequiresDisplayName" not in output
 
 
 class TestNamespaceProtection:
@@ -369,7 +311,7 @@ class TestNamespaceProtection:
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
-remains:Topic rdfs:label "Hacked" .
+remains:RequiresDisplayName rdfs:label "Hacked" .
 remains:EvilClass a owl:Class .
 """)
         with pytest.raises(ValueError, match="system namespace"):
@@ -382,7 +324,7 @@ remains:EvilClass a owl:Class .
 @prefix remains-sh: <urn:remains:shapes#> .
 @prefix sh: <http://www.w3.org/ns/shacl#> .
 
-remains-sh:TopicShape sh:deactivated true .
+remains-sh:DisplayNameShape sh:deactivated true .
 """)
         with pytest.raises(ValueError, match="system namespace"):
             store.update_shacl(evil)
@@ -451,91 +393,7 @@ class TestInfo:
 
 
 # ---------------------------------------------------------------------------
-# Phase 2: Domains
-# ---------------------------------------------------------------------------
-
-
-class TestDomains:
-    """Domain management commands."""
-
-    @pytest.fixture
-    def store(self, tmp_path):
-        db = RemainsStore(tmp_path / "test.db")
-        db.init(
-            ontology_path=EXAMPLES_ROOT / "ontology.ttl",
-            shacl_path=EXAMPLES_ROOT / "shapes.ttl",
-        )
-        yield db
-        db.close()
-
-    def test_create_domain(self, store):
-        """Create a domain and verify it exists."""
-        store.create_domain("people", "People", [str(EX.Person), str(EX.Organization)])
-
-        domains = store.list_domains()
-        assert len(domains) == 1
-        assert domains[0]["name"] == "People"
-        assert len(domains[0]["classes"]) == 2
-
-    def test_add_to_domain(self, store):
-        """Add a class to existing domain."""
-        store.create_domain("people", "People", [str(EX.Person)])
-        store.add_to_domain("people", [str(EX.Organization)])
-
-        domains = store.list_domains()
-        assert len(domains[0]["classes"]) == 2
-
-    def test_list_domains_empty(self, store):
-        """List domains when none exist."""
-        domains = store.list_domains()
-        assert domains == []
-
-
-# ---------------------------------------------------------------------------
-# Phase 3: Topics (data graph)
-# ---------------------------------------------------------------------------
-
-
-class TestTopics:
-    """Topic management."""
-
-    @pytest.fixture
-    def store(self, tmp_path):
-        db = RemainsStore(tmp_path / "test.db")
-        db.init(
-            ontology_path=EXAMPLES_ROOT / "ontology.ttl",
-            shacl_path=EXAMPLES_ROOT / "shapes.ttl",
-        )
-        db.load(EXAMPLES_ROOT / "data_good.ttl")
-        yield db
-        db.close()
-
-    def test_create_topic(self, store):
-        """Create a topic with members."""
-        store.create_topic("research", "Research", ["http://example.com/ontology#alice"])
-
-        topics = store.list_topics()
-        assert len(topics) == 1
-        assert topics[0]["name"] == "Research"
-
-    def test_topic_stored_in_default_graph(self, store):
-        """Topics must be stored in default data graph."""
-        store.create_topic("research", "Research", ["http://example.com/ontology#alice"])
-
-        conn = store._connect()
-        topic_triples = conn.execute(
-            "SELECT COUNT(*) FROM triples WHERE graph = '' AND subject LIKE 'urn:remains:topic%'"
-        ).fetchone()[0]
-        assert topic_triples > 0
-
-    def test_list_topics_empty(self, store):
-        """List topics when none exist."""
-        topics = store.list_topics()
-        assert topics == []
-
-
-# ---------------------------------------------------------------------------
-# Phase 4: Display names
+# Display names
 # ---------------------------------------------------------------------------
 
 

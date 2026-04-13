@@ -48,7 +48,7 @@ def cli():
 
     \b
     Architecture:
-      DEFAULT graph  = user data + topics
+      DEFAULT graph  = user data
       urn:ontology   = system ontology + user ontology
       urn:shacl      = system shapes + user shapes
 
@@ -58,12 +58,6 @@ def cli():
       remains load data.ttl
       remains query "SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10"
       remains prompt
-      remains prompt --domain people
-
-    \b
-    Multiple domains = multiple databases:
-      REMAINS_DSN=meetings.db remains init --ontology meetings.ttl --shacl meetings-shapes.ttl
-      REMAINS_DSN=finance.db remains init --ontology finance.ttl --shacl finance-shapes.ttl
 
     \b
     Environment variables:
@@ -220,8 +214,7 @@ def export(db: Path | None, what: str):
 @cli.command()
 @click.argument("source", type=click.Path(exists=True, path_type=Path), required=False, default=None)
 @click.option("--db", "-d", default=None)
-@click.option("--domain", default=None, help="Filter prompt to a named domain.")
-def prompt(source: Path | None, db: str | None, domain: str | None):
+def prompt(source: Path | None, db: str | None):
     """Generate LLM extraction prompt context from ontology.
 
     \b
@@ -229,9 +222,6 @@ def prompt(source: Path | None, db: str | None, domain: str | None):
       remains prompt                  Use --db or REMAINS_DSN
       remains prompt my.db            Extract from DB's ontology
       remains prompt ontology.ttl     Standalone from file
-
-    \b
-    --domain filters to classes in a named domain.
     """
     from remains.prompt import prompt_from_file, prompt_from_store
 
@@ -240,7 +230,7 @@ def prompt(source: Path | None, db: str | None, domain: str | None):
     else:
         store = RemainsStore(source or db)
         try:
-            click.echo(prompt_from_store(store, domain=domain))
+            click.echo(prompt_from_store(store))
         finally:
             store.close()
 
@@ -262,78 +252,6 @@ def info(db: Path | None, as_json: bool):
             click.echo(f"Data:      {s['data_triples']} triples")
             click.echo(f"Ontology:  {s['ontology_triples']} triples")
             click.echo(f"SHACL:     {s['shacl_triples']} triples")
-            click.echo(f"Domains:   {s['domains']}")
-            click.echo(f"Topics:    {s['topics']}")
-    finally:
-        store.close()
-
-
-@cli.command()
-@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
-@click.option("--json", "as_json", is_flag=True)
-def domains(db: Path | None, as_json: bool):
-    """List all domains."""
-    store = _open_store(db)
-    try:
-        domain_list = store.list_domains()
-        if as_json:
-            click.echo(json.dumps(domain_list, indent=2))
-        else:
-            if not domain_list:
-                click.echo("(no domains)")
-            else:
-                for d in domain_list:
-                    click.echo(f"  {d['slug']:<20} {len(d['classes'])} classes  \"{d['name']}\"")
-    finally:
-        store.close()
-
-
-@cli.command("create-domain")
-@click.argument("slug")
-@click.option("--name", "-n", required=True)
-@click.option("--class", "-c", "classes", multiple=True, required=True, help="Class URI (repeatable)")
-@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
-def create_domain(slug: str, name: str, classes: tuple[str, ...], db: Path | None):
-    """Create a domain (ontology class grouping for scoped prompts)."""
-    store = _open_store(db)
-    try:
-        store.create_domain(slug, name, list(classes))
-        click.echo(f"Created domain '{slug}' with {len(classes)} classes")
-    finally:
-        store.close()
-
-
-@cli.command()
-@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
-@click.option("--json", "as_json", is_flag=True)
-def topics(db: Path | None, as_json: bool):
-    """List all topics."""
-    store = _open_store(db)
-    try:
-        topic_list = store.list_topics()
-        if as_json:
-            click.echo(json.dumps(topic_list, indent=2))
-        else:
-            if not topic_list:
-                click.echo("(no topics)")
-            else:
-                for t in topic_list:
-                    click.echo(f"  {t['slug']:<20} {len(t['members'])} members  \"{t['name']}\"")
-    finally:
-        store.close()
-
-
-@cli.command("create-topic")
-@click.argument("slug")
-@click.option("--name", "-n", required=True)
-@click.option("--member", "-m", "members", multiple=True, required=True, help="Member URI (repeatable)")
-@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
-def create_topic(slug: str, name: str, members: tuple[str, ...], db: Path | None):
-    """Create a topic (data entity grouping)."""
-    store = _open_store(db)
-    try:
-        store.create_topic(slug, name, list(members))
-        click.echo(f"Created topic '{slug}' with {len(members)} members")
     finally:
         store.close()
 
