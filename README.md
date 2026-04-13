@@ -101,14 +101,14 @@ The CLI is the source of truth. `remains --help` lists every command, and
 `remains <command> --help` documents its flags. A whirlwind tour:
 
 ```
-remains init           # create a new store, load ontology + shapes
-remains load DATA      # validate Turtle and load it into the data graph
-remains check SRC DATA # validate without loading (DB or .ttl ontology)
-remains query SPARQL   # SELECT / CONSTRUCT / ASK across the union graph
-remains prompt         # render the ontology as LLM extraction context
-remains export         # dump data / ontology / shapes as Turtle
-remains info           # database statistics
-remains viz            # interactive or static knowledge-graph visualizer
+remains init         # create a new store, load ontology + shapes
+remains load DATA    # validate Turtle and load it into the data graph
+remains check DATA   # same validation as load, without committing
+remains query SPARQL # SELECT / CONSTRUCT / ASK across the union graph
+remains prompt       # render the ontology as LLM extraction context
+remains export       # dump data / ontology / shapes as Turtle
+remains info         # database statistics
+remains viz          # interactive or static knowledge-graph visualizer
 ```
 
 The store has three fixed graphs — data (default), `urn:ontology`, and
