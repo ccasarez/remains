@@ -1,10 +1,34 @@
 @prefix dregs:    <urn:dregs:system#> .
 @prefix dregs-sh: <urn:dregs:shapes#> .
 @prefix sh:       <http://www.w3.org/ns/shacl#> .
+@prefix rdf:      <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:      <http://www.w3.org/2002/07/owl#> .
 @prefix skos:     <http://www.w3.org/2004/02/skos/core#> .
 @prefix schema:   <http://schema.org/> .
+@prefix prov:     <http://www.w3.org/ns/prov#> .
 @prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
+
+# Prefix declarations used by the SHACL-SPARQL constraints below.
+# The ontology node lives in the protected urn:dregs:shapes# namespace so
+# that update-shacl cannot overwrite it.
+dregs-sh:ontology a owl:Ontology ;
+    sh:declare [
+        sh:prefix "rdf" ;
+        sh:namespace "http://www.w3.org/1999/02/22-rdf-syntax-ns#"^^xsd:anyURI ;
+    ] ,
+    [
+        sh:prefix "rdfs" ;
+        sh:namespace "http://www.w3.org/2000/01/rdf-schema#"^^xsd:anyURI ;
+    ] ,
+    [
+        sh:prefix "owl" ;
+        sh:namespace "http://www.w3.org/2002/07/owl#"^^xsd:anyURI ;
+    ] ,
+    [
+        sh:prefix "prov" ;
+        sh:namespace "http://www.w3.org/ns/prov#"^^xsd:anyURI ;
+    ] .
 
 # Topic must have label and at least one member
 dregs-sh:TopicShape a sh:NodeShape ;
@@ -57,3 +81,85 @@ dregs-sh:DisplayNameShape a sh:NodeShape ;
         [ sh:path schema:name ; sh:minCount 1 ]
     ) ;
     sh:message "Instance must have rdfs:label, skos:prefLabel, or schema:name" .
+
+# ---------------------------------------------------------------------------
+# SHACL-SPARQL schema checks
+# ---------------------------------------------------------------------------
+# These advanced constraints replace the previous hand-rolled schema checks
+# (UNKNOWN_TYPE / ABSTRACT_TYPE / NO_TYPE) and let pyshacl own the whole
+# validation pipeline. They require `advanced=True` when calling pyshacl.
+
+# UNKNOWN_TYPE: every URI used as an rdf:type object must be declared as
+# an owl:Class or rdfs:Class in the ontology (or the SHACL shapes graph).
+# URIs in well-known W3C / dregs system namespaces are exempt.
+dregs-sh:KnownTypeShape a sh:NodeShape ;
+    sh:targetObjectsOf rdf:type ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Type {$this} is not defined as owl:Class or rdfs:Class in the ontology (UNKNOWN_TYPE)" ;
+        sh:prefixes dregs-sh:ontology ;
+        sh:select """
+            SELECT $this
+            WHERE {
+                FILTER NOT EXISTS { $this a owl:Class }
+                FILTER NOT EXISTS { $this a rdfs:Class }
+                FILTER (!STRSTARTS(STR($this), "http://www.w3.org/"))
+                FILTER (!STRSTARTS(STR($this), "http://schema.org/"))
+                FILTER (!STRSTARTS(STR($this), "urn:dregs:"))
+            }
+        """ ;
+    ] .
+
+# ABSTRACT_TYPE: instances must be typed with at least one leaf class
+# (a class that has no declared subclass). Typing only with abstract parent
+# classes (e.g. ex:Agent when ex:Person/ex:Organization exist) is rejected.
+dregs-sh:LeafTypeShape a sh:NodeShape ;
+    sh:targetSubjectsOf rdf:type ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Instance {$this} is typed only with abstract classes (ABSTRACT_TYPE). Use a leaf class." ;
+        sh:prefixes dregs-sh:ontology ;
+        sh:select """
+            SELECT $this
+            WHERE {
+                $this a ?someType .
+                ?someType a owl:Class .
+                FILTER NOT EXISTS {
+                    $this a ?leaf .
+                    ?leaf a owl:Class .
+                    FILTER NOT EXISTS { ?child rdfs:subClassOf ?leaf }
+                }
+            }
+        """ ;
+    ] .
+
+# NO_TYPE: any named subject that appears in the data with at least one
+# user-namespaced predicate must carry an rdf:type. Well-known subjects
+# and bnodes are exempt.
+dregs-sh:HasTypeShape a sh:NodeShape ;
+    sh:target [
+        a sh:SPARQLTarget ;
+        sh:prefixes dregs-sh:ontology ;
+        sh:select """
+            SELECT ?this
+            WHERE {
+                ?this ?p ?o .
+                FILTER (isIRI(?this))
+                FILTER NOT EXISTS { ?this a ?t }
+                FILTER (!STRSTARTS(STR(?this), "http://www.w3.org/"))
+                FILTER (!STRSTARTS(STR(?this), "http://schema.org/"))
+                FILTER (!STRSTARTS(STR(?this), "urn:dregs:"))
+            }
+        """ ;
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Instance {$this} has no rdf:type (NO_TYPE)" ;
+        sh:prefixes dregs-sh:ontology ;
+        sh:select """
+            SELECT $this
+            WHERE {
+                FILTER NOT EXISTS { $this a ?t }
+            }
+        """ ;
+    ] .
