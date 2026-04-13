@@ -600,6 +600,13 @@ def run_validation(
     relationships when evaluating ``sh:class`` constraints. ``reasoning_regime``
     controls the pre-validation inference pyshacl applies (``none``, ``rdfs``,
     ``owlrl``, ``both``).
+
+    Because pyshacl merges ``ont_graph`` into the data graph before evaluating
+    SHACL targets (especially SPARQL-based targets enabled by ``advanced=True``),
+    shapes that target ``owl:Class`` or ``owl:ObjectProperty`` will match
+    ontology nodes — not just user data. Any such violations are filtered out
+    here so ``dregs load`` only polices instance data, not the ontology that
+    informs it.
     """
     from pyshacl import validate
 
@@ -620,17 +627,77 @@ def run_validation(
         serialize_report_graph="turtle",
     )
 
+    ontology_only_nodes: set = set()
+    if ont_graph is not None:
+        ontology_only_nodes = _collect_ontology_nodes(ont_graph) - _collect_data_targets(data_graph)
+
+    violations = _parse_shacl_report(
+        results_graph,
+        results_text,
+        exclude_focus_nodes=ontology_only_nodes,
+    )
+
+    # If pyshacl reported violations but they were all against ontology nodes,
+    # the user's data actually conforms — re-derive conformance from the
+    # filtered violation list.
+    if ontology_only_nodes and not conforms:
+        conforms = not violations
+
     result.conforms = bool(conforms)
     result.shacl_conforms = bool(conforms)
 
     if not conforms:
-        result.shacl_violations = _parse_shacl_report(results_graph, results_text)
+        result.shacl_violations = violations
 
     return result
 
 
-def _parse_shacl_report(results_graph, results_text: str) -> list[str]:
-    """Extract human-readable violation messages from a pyshacl report."""
+def _collect_ontology_nodes(g: Graph) -> set:
+    """Collect every URIRef/BNode identifier mentioned anywhere in a graph."""
+    nodes: set = set()
+    for s, _, o in g:
+        if isinstance(s, (URIRef, BNode)):
+            nodes.add(s)
+        if isinstance(o, (URIRef, BNode)):
+            nodes.add(o)
+    return nodes
+
+
+def _collect_data_targets(g: Graph) -> set:
+    """Collect nodes that the user is asserting *something about* in the data.
+
+    A node qualifies as a data target if it is:
+
+    - a subject of any triple in the data graph, or
+    - an object of a predicate other than ``rdf:type``.
+
+    Objects that appear only on the right-hand side of ``rdf:type`` are type
+    references (e.g. ``ex:alice a gist:Person`` mentions ``gist:Person`` but
+    says nothing *about* it). Those nodes should remain eligible for filtering
+    so that ontology-policing SHACL shapes — which use SPARQL targets like
+    ``SELECT $this WHERE { $this a owl:Class }`` — don't spuriously fire
+    against ontology classes that happen to be referenced from the data.
+    """
+    targets: set = set()
+    for s, p, o in g:
+        if isinstance(s, (URIRef, BNode)):
+            targets.add(s)
+        if isinstance(o, (URIRef, BNode)) and p != RDF.type:
+            targets.add(o)
+    return targets
+
+
+def _parse_shacl_report(
+    results_graph,
+    results_text: str,
+    exclude_focus_nodes: Optional[set] = None,
+) -> list[str]:
+    """Extract human-readable violation messages from a pyshacl report.
+
+    ``exclude_focus_nodes`` is an optional set of nodes whose validation
+    results should be dropped (used to filter out violations that target
+    ontology nodes rather than user data).
+    """
     rg: Optional[Graph] = None
     if isinstance(results_graph, (str, bytes)):
         rg = Graph()
@@ -638,10 +705,13 @@ def _parse_shacl_report(results_graph, results_text: str) -> list[str]:
     elif isinstance(results_graph, Graph):
         rg = results_graph
 
+    excluded = exclude_focus_nodes or set()
     violations: list[str] = []
     if rg is not None:
         for result_node in rg.subjects(RDF.type, SH.ValidationResult):
             focus = rg.value(result_node, SH.focusNode)
+            if focus is not None and focus in excluded:
+                continue
             path = rg.value(result_node, SH.resultPath)
             msg = rg.value(result_node, SH.resultMessage)
             focus_s = _short(focus) if focus else "?"
