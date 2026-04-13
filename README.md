@@ -60,17 +60,20 @@ These two files are your agent’s contract with reality. Everything downstream 
 ### 2. Remains provides the backpressure
 
 ```bash
+# Point remains at a database (local file or libsql:// URL)
+export REMAINS_DSN=project.db
+
 # Initialize the store with your schema
-remains init project.db --schema ontology.ttl --shacl shapes.ttl
+remains init --ontology ontology.ttl --shacl shapes.ttl
 
 # Generate extraction context — feed this to your LLM
-remains prompt project.db > context.txt
+remains prompt > context.txt
 
 # Your agent extracts triples from unstructured text using context.txt
 # (this step is yours — remains handles validation, not extraction)
 
 # Load with validation
-remains load project.db extracted.ttl --graph "meeting-notes"
+remains load extracted.ttl
 ```
 
 If the extraction is clean, it loads. If not, remains rejects it:
@@ -94,77 +97,53 @@ Vector search finds things that feel similar. Remains stores things that are tru
 
 ## Commands
 
-### `init`
-
-Create a new store with your schema and constraints.
-
-```
-remains init DB --schema ONTOLOGY [--shacl SHAPES]
-```
-
-### `load`
-
-Load extracted knowledge. Validates against your schema by default. Rejects bad data with clear violation messages.
+The CLI is the source of truth. `remains --help` lists every command, and
+`remains <command> --help` documents its flags. A whirlwind tour:
 
 ```
-remains load DB DATA [--graph NAME] [--no-validate]
+remains init           # create a new store, load ontology + shapes
+remains load DATA      # validate Turtle and load it into the data graph
+remains check SRC DATA # validate without loading (DB or .ttl ontology)
+remains query SPARQL   # SELECT / CONSTRUCT / ASK across the union graph
+remains prompt         # render the ontology as LLM extraction context
+remains export         # dump data / ontology / shapes as Turtle
+remains info           # database statistics
+remains viz            # interactive or static knowledge-graph visualizer
 ```
 
-Exit code 1 on failure. Agent reads violations, fixes extraction, retries.
+The store has three fixed graphs — data (default), `urn:ontology`, and
+`urn:shacl` — and a pair of grouping primitives layered on top:
 
-### `check`
+- **Domains** scope the ontology: `remains create-domain`, `remains domains`,
+  and `remains prompt --domain <slug>` emit extraction context for a subset
+  of classes.
+- **Topics** scope the data: `remains create-topic`, `remains topics` group
+  related entities for recall and visualization.
 
-Validate without loading.
-
-```
-remains check my.db data.ttl              # against DB's schema
-remains check ontology.ttl data.ttl       # standalone, no DB
-```
-
-### `query`
-
-SPARQL against the store. Queries all graphs by default.
+For multi-domain setups, use one database per domain and point `REMAINS_DSN`
+at whichever one you need:
 
 ```
-remains query DB "SPARQL" [--format table|json|turtle] [--graph NAME]
+REMAINS_DSN=meetings.db remains init --ontology meetings.ttl --shacl meetings-shapes.ttl
+REMAINS_DSN=finance.db  remains init --ontology finance.ttl  --shacl finance-shapes.ttl
 ```
 
-### `export`
-
-Export as Turtle.
-
-```
-remains export DB --type schema|shacl|data|all [--graph NAME]
-```
-
-### `prompt`
-
-Generate LLM extraction context from the schema. Lists all classes, properties, and examples so your agent knows exactly what to extract and how to structure it.
-
-```
-remains prompt my.db
-remains prompt ontology.ttl
-```
-
-### `info` / `graphs` / `drop`
-
-```
-remains info DB                  # statistics
-remains graphs DB                # list named graphs
-remains drop DB --graph NAME     # delete a graph
-```
+On a failed load, `remains load` exits with code 1 and prints SHACL
+violations the agent can read and retry against.
 
 ## Python API
 
+The CLI is a thin wrapper around `remains.RemainsStore` and a couple of
+helpers. The full surface lives in `src/remains/`; a typical flow:
+
 ```python
-from remains import RemainsStore
-from remains.sparql import execute_sparql
-from remains.prompt import prompt_from_store
+from pathlib import Path
+from remains import RemainsStore, execute_sparql, prompt_from_store
 
 db = RemainsStore("project.db")
-db.init(schema_path=Path("ontology.ttl"), shacl_path=Path("shapes.ttl"))
+db.init(ontology_path=Path("ontology.ttl"), shacl_path=Path("shapes.ttl"))
 
-result = db.load(Path("data.ttl"), graph_name="emails")
+result = db.load(Path("data.ttl"))
 if not result["loaded"]:
     print(result["validation"].summary())
 
@@ -183,7 +162,7 @@ Pure local SQLite. No network required.
 
 ```bash
 export REMAINS_DSN=./my.db
-remains init --schema ontology.ttl
+remains init --ontology ontology.ttl
 ```
 
 ### Remote Only (Turso Cloud)
@@ -220,13 +199,16 @@ export REMAINS_AUTH_TOKEN=eyJ...
 
 ## Validation Pipeline
 
-Three layers run on every `remains load`:
+Every `remains load` runs the data through [pyshacl](https://github.com/RDFLib/pySHACL),
+which enforces the SHACL shapes against the user data while using the ontology
+as `ont_graph` so subclass relationships and `sh:class` constraints resolve
+correctly. `remains check` exposes the same pipeline without a load and adds
+an optional `--regime` flag (`none | rdfs | owlrl | both`) that tells pyshacl
+which inference to apply before checking.
 
-1. **SHACL** — required fields, cardinality, datatypes
-1. **OWL-RL reasoning** — infer missing triples, detect contradictions
-1. **Schema conformance** — unknown types, misuse of abstract classes, provenance
-
-If any layer fails, nothing gets committed. Your agent gets violation messages it can use to fix the extraction and retry. This is the backpressure — the schema doesn’t just document your domain, it defends it.
+If validation fails, nothing gets committed. Your agent gets violation
+messages it can use to fix the extraction and retry. This is the
+backpressure — the schema doesn’t just document your domain, it defends it.
 
 ## Examples
 
