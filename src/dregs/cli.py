@@ -136,10 +136,9 @@ def load(data: Path, db: Path | None, as_json: bool):
 @click.argument("source", type=click.Path(exists=True, path_type=Path))
 @click.argument("data", type=click.Path(exists=True, path_type=Path))
 @click.option("--shacl", "-s", type=click.Path(exists=True, path_type=Path))
-@click.option("--regime", "-r", type=click.Choice(["owlrl", "rdfs", "both"]), default="owlrl")
-@click.option("--require-provenance", "-p", is_flag=True)
+@click.option("--regime", "-r", type=click.Choice(["none", "rdfs", "owlrl", "both"]), default="none")
 @click.option("--json", "as_json", is_flag=True)
-def check(source: Path, data: Path, shacl: Path | None, regime: str, require_provenance: bool, as_json: bool):
+def check(source: Path, data: Path, shacl: Path | None, regime: str, as_json: bool):
     """Validate RDF data against an ontology or dregs database.
 
     \b
@@ -168,7 +167,6 @@ def check(source: Path, data: Path, shacl: Path | None, regime: str, require_pro
                 data_graph=data_graph,
                 shacl_graph=shacl_graph if len(shacl_graph) > 0 else None,
                 reasoning_regime=regime,
-                require_provenance=require_provenance,
             )
         finally:
             store.close()
@@ -178,7 +176,6 @@ def check(source: Path, data: Path, shacl: Path | None, regime: str, require_pro
             data_path=data,
             shacl_path=shacl,
             reasoning_regime=regime,
-            require_provenance=require_provenance,
         )
 
     if as_json:

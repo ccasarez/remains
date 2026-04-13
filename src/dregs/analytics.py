@@ -4,13 +4,8 @@ from __future__ import annotations
 import math
 from typing import Optional
 
-try:
-    import networkx as nx
-    from networkx.algorithms.community import louvain_communities
-
-    HAS_NETWORKX = True
-except ImportError:
-    HAS_NETWORKX = False
+import networkx as nx
+from networkx.algorithms.community import louvain_communities
 
 
 def compute_analytics(
@@ -21,11 +16,9 @@ def compute_analytics(
 
     Operates on the pre-extracted node/edge dicts from _build_graph_data.
     Returns analytics dict to be merged into the graph JSON.
-
-    Gracefully degrades if networkx is not installed.
     """
-    if not HAS_NETWORKX or len(nodes) == 0:
-        return _fallback_analytics(nodes, edges)
+    if len(nodes) == 0:
+        return _empty_analytics(nodes, edges)
 
     # Build undirected networkx graph
     G = nx.Graph()
@@ -293,33 +286,15 @@ def _hsl_to_hex(h: float, s: float, l: float) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-def _fallback_analytics(nodes: list[dict], edges: list[dict]) -> dict:
-    """Minimal analytics when networkx is not available."""
-    # Just use degree for sizing, no communities
-    degree_map = {}
-    for e in edges:
-        degree_map[e["source"]] = degree_map.get(e["source"], 0) + 1
-        degree_map[e["target"]] = degree_map.get(e["target"], 0) + 1
-
-    max_deg = max(degree_map.values()) if degree_map else 1
-    min_deg = min(degree_map.values()) if degree_map else 0
-
-    for n in nodes:
-        deg = degree_map.get(n["id"], 0)
-        n["community"] = 0
-        n["communityColor"] = "#4ecdc4"
-        n["bc"] = 0
-        n["degree"] = deg
-        t = (deg - min_deg) / (max_deg - min_deg) if max_deg > min_deg else 0.5
-        n["size"] = round(4 + t * 24, 1)
-
+def _empty_analytics(nodes: list[dict], edges: list[dict]) -> dict:
+    """Analytics payload for an empty graph."""
     return {
-        "communities": [{"id": 0, "nodeCount": len(nodes), "color": "#4ecdc4", "topNodes": []}],
+        "communities": [],
         "modularity": 0,
         "density": 0,
-        "componentCount": 1,
-        "avgDegree": round(sum(degree_map.values()) / len(nodes), 1) if nodes else 0,
-        "biasLabel": "Unknown",
+        "componentCount": 0,
+        "avgDegree": 0,
+        "biasLabel": "Empty",
         "gaps": [],
         "topBCNodes": [],
     }

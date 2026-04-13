@@ -8,7 +8,7 @@ import pytest
 
 from dregs.store import DregsStore
 from dregs.viz import _build_graph_data, serve_viz
-from dregs.analytics import compute_analytics, HAS_NETWORKX
+from dregs.analytics import compute_analytics
 
 
 @pytest.fixture
@@ -189,7 +189,6 @@ class TestAnalyticsDirect:
         assert nodes[0]["community"] == 0
         assert nodes[0]["bc"] == 0
 
-    @pytest.mark.skipif(not HAS_NETWORKX, reason="networkx required")
     def test_two_clusters(self):
         """Two disconnected cliques should produce 2 communities."""
         nodes = [{"id": f"n{i}", "label": f"N{i}", "type": "X", "color": "#fff", "edges": 0, "size": 4} for i in range(6)]
@@ -207,7 +206,6 @@ class TestAnalyticsDirect:
         assert len(result["communities"]) >= 2
         assert result["componentCount"] == 2
 
-    @pytest.mark.skipif(not HAS_NETWORKX, reason="networkx required")
     def test_bridge_node_has_high_bc(self):
         """A bridge node connecting two groups should have highest BC."""
         nodes = [{"id": f"n{i}", "label": f"N{i}", "type": "X", "color": "#fff", "edges": 0, "size": 4} for i in range(5)]

@@ -22,43 +22,27 @@ class Triple:
 class ValidationResult:
     """Result of a validation run."""
     conforms: bool = True
-    owl_inferred_triples: int = 0
     shacl_conforms: bool = True
     shacl_violations: list[str] = field(default_factory=list)
-    schema_violations: list[str] = field(default_factory=list)
-    total_triples_before: int = 0
-    total_triples_after: int = 0
 
     def summary(self) -> str:
         lines = [
             "=== dregs check ===",
-            f"Triples before reasoning: {self.total_triples_before}",
-            f"Triples after reasoning:  {self.total_triples_after}",
-            f"Inferred triples:         {self.owl_inferred_triples}",
             f"SHACL conforms:           {self.shacl_conforms}",
             f"SHACL violations:         {len(self.shacl_violations)}",
-            f"Schema violations:        {len(self.schema_violations)}",
             f"Overall:                  {'PASS' if self.conforms else 'FAIL'}",
         ]
         if self.shacl_violations:
             lines.append("\n--- SHACL Violations ---")
             for v in self.shacl_violations:
                 lines.append(f"  - {v}")
-        if self.schema_violations:
-            lines.append("\n--- Schema Violations ---")
-            for v in self.schema_violations:
-                lines.append(f"  - {v}")
         return "\n".join(lines)
 
     def to_dict(self) -> dict:
         return {
             "conforms": self.conforms,
-            "owl_inferred_triples": self.owl_inferred_triples,
             "shacl_conforms": self.shacl_conforms,
             "shacl_violations": self.shacl_violations,
-            "schema_violations": self.schema_violations,
-            "triples_before": self.total_triples_before,
-            "triples_after": self.total_triples_after,
         }
 
 

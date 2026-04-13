@@ -7,24 +7,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from rdflib import OWL, RDF, RDFS, Graph, Literal, Namespace, URIRef, BNode
+from rdflib import RDF, RDFS, Graph, Literal, Namespace, URIRef, BNode
 from rdflib.term import Node
 
 from dregs.models import Triple, ValidationResult
 
-PROV = Namespace("http://www.w3.org/ns/prov#")
-SKOS = Namespace("http://www.w3.org/2004/02/skos/core#")
 SH = Namespace("http://www.w3.org/ns/shacl#")
-
-_WELL_KNOWN_NS = [
-    "http://www.w3.org/2002/07/owl#",
-    "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-    "http://www.w3.org/2000/01/rdf-schema#",
-    "http://www.w3.org/2001/XMLSchema#",
-    "http://www.w3.org/ns/shacl#",
-    "http://www.w3.org/ns/prov#",
-    "http://www.w3.org/2004/02/skos/core#",
-]
 
 _INIT_SQL = """
 CREATE TABLE IF NOT EXISTS triples (
@@ -74,11 +62,6 @@ def _short(uri: Node) -> str:
     if "#" in s:
         return s.split("#")[-1]
     return s.split("/")[-1]
-
-
-def _is_well_known(uri: URIRef) -> bool:
-    s = str(uri)
-    return any(s.startswith(ns) for ns in _WELL_KNOWN_NS)
 
 
 def _rdflib_triple_to_row(s: Node, p: Node, o: Node, graph: str) -> Optional[tuple]:
@@ -313,6 +296,8 @@ class DregsStore:
         count = self._insert_triples(conn, data_graph, "")
         conn.commit()
         return {"loaded": True, "triple_count": count}
+
+
 
     # -----------------------------------------------------------------
     # Query helpers
@@ -606,157 +591,68 @@ def run_validation(
     schema_graph: Graph,
     data_graph: Graph,
     shacl_graph: Optional[Graph] = None,
-    reasoning_regime: str = "owlrl",
-    require_provenance: bool = False,
+    reasoning_regime: str = "none",
 ) -> ValidationResult:
-    """Full validation pipeline: SHACL -> OWL reasoning -> schema checks."""
+    """Validate data using pyshacl with ontology-based class hierarchy.
+
+    Delegates the entire validation pipeline to pyshacl in a single call.
+    The ontology is passed as ``ont_graph`` so pyshacl can resolve subclass
+    relationships when evaluating ``sh:class`` constraints. ``reasoning_regime``
+    controls the pre-validation inference pyshacl applies (``none``, ``rdfs``,
+    ``owlrl``, ``both``).
+    """
+    from pyshacl import validate
+
     result = ValidationResult()
 
-    combined = Graph()
-    for t in schema_graph:
-        combined.add(t)
-    for t in data_graph:
-        combined.add(t)
+    if shacl_graph is None or len(shacl_graph) == 0:
+        result.conforms = True
+        return result
 
-    result.total_triples_before = len(combined)
-
-    if shacl_graph and len(shacl_graph) > 0:
-        result.shacl_conforms, result.shacl_violations = _run_shacl(
-            combined, shacl_graph
-        )
-
-    result.owl_inferred_triples = _run_owl_reasoning(combined, reasoning_regime)
-    result.total_triples_after = len(combined)
-
-    result.schema_violations = _run_schema_checks(
-        schema_graph, combined, require_provenance
-    )
-
-    result.conforms = result.shacl_conforms and len(result.schema_violations) == 0
-    return result
-
-
-def _run_owl_reasoning(graph: Graph, regime: str = "owlrl") -> int:
-    import owlrl
-
-    before = len(graph)
-    regimes = {
-        "owlrl": owlrl.OWLRL_Semantics,
-        "rdfs": owlrl.RDFSClosure,
-        "both": owlrl.OWLRL_Extension,
-    }
-    semantics = regimes.get(regime, owlrl.OWLRL_Semantics)
-    owlrl.DeductiveClosure(semantics).expand(graph)
-    return len(graph) - before
-
-
-def _run_shacl(data_graph: Graph, shacl_graph: Graph) -> tuple[bool, list[str]]:
-    from pyshacl import validate
+    ont_graph = schema_graph if schema_graph is not None and len(schema_graph) > 0 else None
 
     conforms, results_graph, results_text = validate(
         data_graph,
         shacl_graph=shacl_graph,
-        inference="none",
+        ont_graph=ont_graph,
+        inference=reasoning_regime,
+        advanced=True,
         serialize_report_graph="turtle",
     )
 
-    violations = []
+    result.conforms = bool(conforms)
+    result.shacl_conforms = bool(conforms)
+
     if not conforms:
-        rg = None
-        if isinstance(results_graph, (str, bytes)):
-            rg = Graph()
-            rg.parse(data=results_graph, format="turtle")
-        elif isinstance(results_graph, Graph):
-            rg = results_graph
+        result.shacl_violations = _parse_shacl_report(results_graph, results_text)
 
-        if rg:
-            for result_node in rg.subjects(RDF.type, SH.ValidationResult):
-                focus = rg.value(result_node, SH.focusNode)
-                path = rg.value(result_node, SH.resultPath)
-                msg = rg.value(result_node, SH.resultMessage)
-                focus_s = _short(focus) if focus else "?"
-                path_s = _short(path) if path else "?"
-                msg_s = str(msg) if msg else "constraint violated"
-                violations.append(f"[{focus_s}] {path_s}: {msg_s}")
-        else:
-            for line in results_text.strip().split("\n"):
-                line = line.strip()
-                if line.startswith("Message:"):
-                    violations.append(line)
-
-    return conforms, violations
+    return result
 
 
-def _run_schema_checks(
-    schema_graph: Graph,
-    combined_graph: Graph,
-    require_provenance: bool = False,
-) -> list[str]:
-    violations = []
+def _parse_shacl_report(results_graph, results_text: str) -> list[str]:
+    """Extract human-readable violation messages from a pyshacl report."""
+    rg: Optional[Graph] = None
+    if isinstance(results_graph, (str, bytes)):
+        rg = Graph()
+        rg.parse(data=results_graph, format="turtle")
+    elif isinstance(results_graph, Graph):
+        rg = results_graph
 
-    schema_classes: set[URIRef] = set()
-    for s in schema_graph.subjects(RDF.type, OWL.Class):
-        if isinstance(s, URIRef):
-            schema_classes.add(s)
-    for s in schema_graph.subjects(RDF.type, RDFS.Class):
-        if isinstance(s, URIRef):
-            schema_classes.add(s)
-
-    parents: set[URIRef] = set()
-    for _, _, parent in schema_graph.triples((None, RDFS.subClassOf, None)):
-        if isinstance(parent, URIRef):
-            parents.add(parent)
-    abstract_classes = schema_classes & parents
-    leaf_classes = schema_classes - parents
-
-    _SCHEMA_DEF_TYPES = {
-        OWL.Class, OWL.ObjectProperty, OWL.DatatypeProperty,
-        OWL.AnnotationProperty, OWL.Ontology, RDFS.Class, RDFS.Datatype,
-    }
-    schema_definitions: set[Node] = set()
-    for def_type in _SCHEMA_DEF_TYPES:
-        for s in schema_graph.subjects(RDF.type, def_type):
-            schema_definitions.add(s)
-    instance_subjects = set(combined_graph.subjects()) - schema_definitions
-
-    prov_sources: set[URIRef] = set()
-    for obj in combined_graph.objects(predicate=PROV.wasDerivedFrom):
-        if isinstance(obj, URIRef):
-            prov_sources.add(obj)
-
-    for subj in instance_subjects:
-        if not isinstance(subj, URIRef):
-            continue
-        if _is_well_known(subj):
-            continue
-        if subj in prov_sources:
-            continue
-
-        types = set(combined_graph.objects(subj, RDF.type))
-        user_types = {t for t in types if isinstance(t, URIRef) and not _is_well_known(t)}
-
-        if not user_types:
-            if not types:
-                violations.append(f"NO_TYPE: {subj} has no rdf:type")
-            continue
-
-        has_leaf = any(t in leaf_classes for t in user_types)
-
-        for t in user_types:
-            if t not in schema_classes:
-                violations.append(
-                    f"UNKNOWN_TYPE: {_short(subj)} typed as {_short(t)} -- not in schema"
-                )
-            elif t in abstract_classes and not has_leaf:
-                violations.append(
-                    f"ABSTRACT_TYPE: {_short(subj)} typed as abstract class {_short(t)} -- use leaf class"
-                )
-
-        if require_provenance:
-            if not set(combined_graph.objects(subj, PROV.wasDerivedFrom)):
-                violations.append(
-                    f"NO_PROVENANCE: {_short(subj)} missing prov:wasDerivedFrom"
-                )
+    violations: list[str] = []
+    if rg is not None:
+        for result_node in rg.subjects(RDF.type, SH.ValidationResult):
+            focus = rg.value(result_node, SH.focusNode)
+            path = rg.value(result_node, SH.resultPath)
+            msg = rg.value(result_node, SH.resultMessage)
+            focus_s = _short(focus) if focus else "?"
+            path_s = _short(path) if path else "?"
+            msg_s = str(msg) if msg else "constraint violated"
+            violations.append(f"[{focus_s}] {path_s}: {msg_s}")
+    else:
+        for line in (results_text or "").strip().split("\n"):
+            line = line.strip()
+            if line.startswith("Message:"):
+                violations.append(line)
 
     return violations
 
@@ -765,8 +661,7 @@ def validate_files(
     ontology_path: Path,
     data_path: Path,
     shacl_path: Optional[Path] = None,
-    reasoning_regime: str = "owlrl",
-    require_provenance: bool = False,
+    reasoning_regime: str = "none",
 ) -> ValidationResult:
     """Validate from file paths (standalone mode, no DB)."""
     schema_graph = Graph()
@@ -785,5 +680,4 @@ def validate_files(
         data_graph=data_graph,
         shacl_graph=shacl_graph,
         reasoning_regime=reasoning_regime,
-        require_provenance=require_provenance,
     )
