@@ -5,9 +5,18 @@ import time
 import urllib.request
 
 import pytest
+from click.testing import CliRunner
 
+from remains.cli import cli
 from remains.store import RemainsStore
-from remains.viz import _build_graph_data, serve_viz
+from remains.viz import (
+    _build_graph_data,
+    _focus_construct,
+    _focus_subgraph,
+    _run_construct_query,
+    export_viz_html,
+    serve_viz,
+)
 from remains.analytics import compute_analytics
 
 
@@ -342,3 +351,286 @@ class TestServeViz:
         assert "communities" in data
         assert "modularity" in data
         assert "biasLabel" in data
+
+
+class TestExportVizHtml:
+    def test_writes_file(self, loaded_store, tmp_path):
+        out = tmp_path / "graph.html"
+        export_viz_html(loaded_store, out)
+        assert out.exists()
+        html = out.read_text(encoding="utf-8")
+        # Embedded JSON payload
+        assert "__GRAPH_DATA__" not in html, "graph data placeholder was not replaced"
+        assert '"nodes"' in html
+        assert '"edges"' in html
+        assert '"analytics"' in html
+        # Same visualizer shell as the server mode
+        assert "remains" in html
+        assert "communities" in html
+
+    def test_export_contains_real_nodes(self, loaded_store, tmp_path):
+        out = tmp_path / "graph.html"
+        export_viz_html(loaded_store, out)
+        html = out.read_text(encoding="utf-8")
+        # The inline fixture data includes ex:alice / ex:acme — they should
+        # survive round-tripping into the HTML payload.
+        assert "alice" in html
+        assert "acme" in html
+
+    def test_export_accepts_string_path(self, loaded_store, tmp_path):
+        out = tmp_path / "graph.html"
+        export_viz_html(loaded_store, str(out))
+        assert out.exists()
+
+    def test_export_returns_graph_data(self, loaded_store, tmp_path):
+        out = tmp_path / "graph.html"
+        data = export_viz_html(loaded_store, out)
+        assert "nodes" in data
+        assert "edges" in data
+        assert len(data["nodes"]) > 0
+
+
+class TestRunConstructQuery:
+    def test_returns_rdflib_graph(self, loaded_store):
+        from rdflib import Graph
+        sub = _run_construct_query(
+            loaded_store,
+            "CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }",
+        )
+        assert isinstance(sub, Graph)
+        assert len(sub) > 0
+
+    def test_scopes_to_matching_triples(self, loaded_store):
+        # Only alice's outgoing object properties (plus auto-augmented types)
+        sub = _run_construct_query(
+            loaded_store,
+            """
+            CONSTRUCT { ?s ?p ?o }
+            WHERE {
+                <http://example.com/ns#alice> ?p ?o .
+                FILTER(isIRI(?o))
+                BIND(<http://example.com/ns#alice> AS ?s)
+            }
+            """,
+        )
+        from rdflib import URIRef
+        alice = URIRef("http://example.com/ns#alice")
+        bob = URIRef("http://example.com/ns#bob")
+        acme = URIRef("http://example.com/ns#acme")
+        # Alice is the subject of her own outgoing edges
+        alice_subjects = set(sub.subjects())
+        assert alice in alice_subjects
+        # Bob shouldn't appear as a subject — the query only targets alice.
+        assert bob not in alice_subjects
+        # Acme should appear as an object from alice's worksAt edge.
+        assert acme in set(sub.objects())
+
+    def test_auto_augments_types(self, loaded_store):
+        # A CONSTRUCT that intentionally omits rdf:type should still end up
+        # with type triples for every URI node in the resulting subgraph,
+        # because _run_construct_query pulls them from the full store.
+        sub = _run_construct_query(
+            loaded_store,
+            """
+            CONSTRUCT { ?s <http://example.com/ns#worksAt> ?o }
+            WHERE { ?s <http://example.com/ns#worksAt> ?o }
+            """,
+        )
+        from rdflib import RDF, URIRef
+        alice = URIRef("http://example.com/ns#alice")
+        person = URIRef("http://example.com/ns#Person")
+        assert (alice, RDF.type, person) in sub
+
+    def test_rejects_select(self, loaded_store):
+        with pytest.raises(Exception):
+            _run_construct_query(
+                loaded_store,
+                "SELECT ?s WHERE { ?s ?p ?o }",
+            )
+
+
+class TestFocusSubgraph:
+    def test_one_hop_includes_direct_neighbors(self, loaded_store):
+        sub = _focus_subgraph(loaded_store, "http://example.com/ns#alice", hops=1)
+        assert len(sub) > 0
+        from rdflib import URIRef
+        nodes = set(sub.subjects()) | {o for o in sub.objects() if isinstance(o, URIRef)}
+        assert URIRef("http://example.com/ns#alice") in nodes
+        assert URIRef("http://example.com/ns#acme") in nodes  # worksAt
+        assert URIRef("http://example.com/ns#projectX") in nodes  # manages
+        # Carol is not directly connected to alice.
+        assert URIRef("http://example.com/ns#carol") not in nodes
+
+    def test_two_hops_reaches_further(self, loaded_store):
+        # alice --worksAt--> acme --fundedBy (inverse via projectY)--> bob (manages projectY)
+        sub = _focus_subgraph(loaded_store, "http://example.com/ns#alice", hops=2)
+        from rdflib import URIRef
+        nodes = set(sub.subjects()) | {o for o in sub.objects() if isinstance(o, URIRef)}
+        # Bob shares acme as employer (1 hop to acme, 1 hop back to bob = 2 hops)
+        assert URIRef("http://example.com/ns#bob") in nodes
+
+    def test_rejects_zero_hops(self, loaded_store):
+        with pytest.raises(ValueError):
+            _focus_subgraph(loaded_store, "http://example.com/ns#alice", hops=0)
+
+    def test_unknown_uri_yields_empty(self, loaded_store):
+        sub = _focus_subgraph(
+            loaded_store,
+            "http://example.com/ns#nobody-here",
+            hops=2,
+        )
+        assert len(sub) == 0
+
+
+class TestBuildGraphDataWithSubgraph:
+    def test_subgraph_scopes_nodes(self, loaded_store):
+        sub = _focus_subgraph(loaded_store, "http://example.com/ns#alice", hops=1)
+        data = _build_graph_data(loaded_store, subgraph=sub)
+        ids = {n["id"] for n in data["nodes"]}
+        # Alice and her direct neighbors, but not carol/dave.
+        assert "ex:alice" in ids
+        assert "ex:acme" in ids
+        assert "ex:projectX" in ids
+        assert "ex:carol" not in ids
+        assert "ex:dave" not in ids
+
+    def test_subgraph_smaller_than_full(self, loaded_store):
+        full = _build_graph_data(loaded_store)
+        sub = _focus_subgraph(loaded_store, "http://example.com/ns#alice", hops=1)
+        scoped = _build_graph_data(loaded_store, subgraph=sub)
+        assert len(scoped["nodes"]) < len(full["nodes"])
+
+
+class TestFocusConstructString:
+    def test_one_hop(self):
+        q = _focus_construct("http://example.com/ns#alice", 1)
+        assert "CONSTRUCT" in q
+        assert "http://example.com/ns#alice" in q
+
+    def test_multi_hop(self):
+        q = _focus_construct("http://example.com/ns#alice", 3)
+        assert "CONSTRUCT" in q
+        assert "http://example.com/ns#alice" in q
+
+
+class TestVizCli:
+    def _build_db(self, tmp_path):
+        db = tmp_path / "cli.db"
+        store = RemainsStore(str(db))
+        schema = tmp_path / "schema.ttl"
+        schema.write_text("""
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix ex: <http://example.com/ns#> .
+
+ex:Person a owl:Class ; rdfs:label "Person" .
+ex:Org a owl:Class ; rdfs:label "Org" .
+ex:worksAt a owl:ObjectProperty ; rdfs:domain ex:Person ; rdfs:range ex:Org .
+ex:name a owl:DatatypeProperty .
+""")
+        shacl = tmp_path / "shapes.ttl"
+        shacl.write_text("""
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix ex: <http://example.com/ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:PersonShape a sh:NodeShape ;
+    sh:targetClass ex:Person ;
+    sh:property [ sh:path ex:name ; sh:minCount 1 ; sh:datatype xsd:string ] .
+""")
+        store.init(ontology_path=schema, shacl_path=shacl)
+        data = tmp_path / "data.ttl"
+        data.write_text("""
+@prefix ex: <http://example.com/ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:alice a ex:Person ; ex:name "Alice"^^xsd:string ; ex:worksAt ex:acme .
+ex:bob a ex:Person ; ex:name "Bob"^^xsd:string ; ex:worksAt ex:acme .
+ex:carol a ex:Person ; ex:name "Carol"^^xsd:string ; ex:worksAt ex:globex .
+ex:acme a ex:Org ; ex:name "Acme"^^xsd:string .
+ex:globex a ex:Org ; ex:name "Globex"^^xsd:string .
+""")
+        result = store.load(data)
+        assert result["loaded"]
+        store.close()
+        return str(db)
+
+    def test_output_flag_exports_and_exits(self, tmp_path):
+        db_path = self._build_db(tmp_path)
+        out = tmp_path / "graph.html"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["viz", "-d", db_path, "-o", str(out)],
+        )
+        assert result.exit_code == 0, result.output
+        assert out.exists()
+        html = out.read_text(encoding="utf-8")
+        assert "__GRAPH_DATA__" not in html
+        assert "alice" in html
+        assert "acme" in html
+
+    def test_query_flag_scopes_export(self, tmp_path):
+        db_path = self._build_db(tmp_path)
+        out = tmp_path / "alice.html"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "viz", "-d", db_path, "-o", str(out),
+                "--query",
+                "CONSTRUCT { ?s ?p ?o } WHERE { "
+                "<http://example.com/ns#alice> ?p ?o . "
+                "FILTER(isIRI(?o)) "
+                "BIND(<http://example.com/ns#alice> AS ?s) "
+                "}",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert out.exists()
+        html = out.read_text(encoding="utf-8")
+        # Alice and acme should be in the scoped export...
+        assert "alice" in html
+        assert "acme" in html
+        # ...but carol/globex should NOT be (they're not in alice's subgraph).
+        assert "carol" not in html
+        assert "globex" not in html
+
+    def test_focus_flag_scopes_export(self, tmp_path):
+        db_path = self._build_db(tmp_path)
+        out = tmp_path / "focus.html"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "viz", "-d", db_path, "-o", str(out),
+                "--focus", "http://example.com/ns#alice",
+                "--hops", "1",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert out.exists()
+        html = out.read_text(encoding="utf-8")
+        assert "alice" in html
+        assert "acme" in html
+        # Carol is not within one hop of alice
+        assert "carol" not in html
+
+    def test_query_and_focus_mutually_exclusive(self, tmp_path):
+        db_path = self._build_db(tmp_path)
+        out = tmp_path / "nope.html"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "viz", "-d", db_path, "-o", str(out),
+                "--query", "CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }",
+                "--focus", "http://example.com/ns#alice",
+            ],
+        )
+        assert result.exit_code != 0
+        assert "mutually exclusive" in result.output

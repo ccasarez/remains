@@ -381,9 +381,68 @@ def update_shacl(shacl: Path, db: Path | None):
 @click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
 @click.option("--port", "-p", type=int, default=7171)
 @click.option("--no-open", is_flag=True)
-def viz(db: Path | None, port: int, no_open: bool):
-    """Launch interactive knowledge graph visualizer."""
-    from remains.viz import serve_viz
+@click.option(
+    "--output", "-o",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Export a self-contained static HTML file instead of starting the server.",
+)
+@click.option(
+    "--query", "-q", "query_str",
+    type=str,
+    default=None,
+    help="SPARQL CONSTRUCT selecting the subgraph to visualize. "
+         "If omitted, the full store is visualized.",
+)
+@click.option(
+    "--focus",
+    type=str,
+    default=None,
+    help="Focus on the N-hop neighborhood of this URI (sugar for a "
+         "common CONSTRUCT pattern). Mutually exclusive with --query.",
+)
+@click.option(
+    "--hops",
+    type=int,
+    default=1,
+    help="Number of hops for --focus (default: 1).",
+)
+def viz(
+    db: Path | None,
+    port: int,
+    no_open: bool,
+    output: Path | None,
+    query_str: str | None,
+    focus: str | None,
+    hops: int,
+):
+    """Launch interactive knowledge graph visualizer.
+
+    \b
+    Two modes:
+      remains viz -d my.db                       Live server (default)
+      remains viz -d my.db -o graph.html         Static HTML export
+
+    \b
+    Scoping the visualization:
+      --query "CONSTRUCT { ?s ?p ?o } WHERE { ... }"
+          Visualize only the subgraph returned by the CONSTRUCT.
+      --focus <uri> [--hops N]
+          Visualize the N-hop neighborhood around a URI.
+    """
+    from remains.viz import (
+        serve_viz,
+        export_viz_html,
+        _run_construct_query,
+        _focus_subgraph,
+    )
+
+    if query_str and focus:
+        click.echo("Error: --query and --focus are mutually exclusive.", err=True)
+        sys.exit(2)
+    if hops < 1:
+        click.echo("Error: --hops must be >= 1.", err=True)
+        sys.exit(2)
 
     import os
     base_url = os.environ.get("REMAINS_VIZ_URL")
@@ -391,7 +450,42 @@ def viz(db: Path | None, port: int, no_open: bool):
         base_url = base_url.replace("{port}", str(port))
     store = _open_store(db)
     try:
-        serve_viz(store, port=port, open_browser=not no_open, base_url=base_url)
+        subgraph = None
+        if query_str:
+            try:
+                subgraph = _run_construct_query(store, query_str)
+            except Exception as e:
+                click.echo(f"Error running --query: {e}", err=True)
+                sys.exit(1)
+            if len(subgraph) == 0:
+                click.echo(
+                    "Warning: --query returned no triples; "
+                    "visualization will be empty.",
+                    err=True,
+                )
+        elif focus:
+            try:
+                subgraph = _focus_subgraph(store, focus, hops)
+            except Exception as e:
+                click.echo(f"Error building --focus subgraph: {e}", err=True)
+                sys.exit(1)
+            if len(subgraph) == 0:
+                click.echo(
+                    f"Warning: no triples found within {hops} hop(s) of {focus}.",
+                    err=True,
+                )
+
+        if output:
+            export_viz_html(store, output, subgraph=subgraph)
+            click.echo(f"Wrote {output}")
+        else:
+            serve_viz(
+                store,
+                port=port,
+                open_browser=not no_open,
+                base_url=base_url,
+                subgraph=subgraph,
+            )
     finally:
         store.close()
 

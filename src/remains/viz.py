@@ -5,14 +5,47 @@ import json
 import http.server
 import threading
 import webbrowser
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Union
+
+from rdflib import Graph, Namespace, RDF, URIRef
 
 from remains.store import RemainsStore
 
 
-def _build_graph_data(store: RemainsStore) -> dict:
-    """Extract nodes and edges from the store, then compute analytics."""
+def _select_rows(graph: Graph, sparql: str) -> list[dict]:
+    """Run a SELECT query against an rdflib Graph and return bindings as
+    dicts of string values (full URIs, not prefixed)."""
+    result = graph.query(sparql)
+    variables = [str(v) for v in result.vars] if result.vars else []
+    rows: list[dict] = []
+    for row in result:
+        binding = {}
+        for i, var in enumerate(variables):
+            val = row[i]
+            binding[var] = str(val) if val is not None else ""
+        rows.append(binding)
+    return rows
+
+
+def _build_graph_data(
+    store: RemainsStore,
+    subgraph: Optional[Graph] = None,
+) -> dict:
+    """Extract nodes and edges, then compute analytics.
+
+    When ``subgraph`` is provided, the node/edge/label/property queries run
+    against that rdflib ``Graph`` instead of the full union graph from
+    ``store``. Prefix bindings are still pulled from ``store`` so URI
+    shortening is consistent with the rest of the CLI.
+    """
     prefixes = store.get_prefixes()
+    if subgraph is not None:
+        graph = subgraph
+    else:
+        graph = store.load_all_graphs()
+    for prefix, ns in prefixes.items():
+        graph.bind(prefix, Namespace(ns))
 
     def shorten(uri: str) -> str:
         for prefix, ns in prefixes.items():
@@ -41,8 +74,7 @@ def _build_graph_data(store: RemainsStore) -> dict:
         ?o a ?otype . FILTER(!STRSTARTS(STR(?otype), "http://www.w3.org/"))
     }
     """
-    from remains.sparql import execute_sparql
-    result = execute_sparql(store, sparql, format="json")
+    relationship_rows = _select_rows(graph, sparql)
 
     nodes_map = {}  # uri -> node data
     edges = []
@@ -56,9 +88,9 @@ def _build_graph_data(store: RemainsStore) -> dict:
         { ?s ?nameProp ?name . FILTER(CONTAINS(STR(?nameProp), "name")) }
     }
     """
-    label_result = execute_sparql(store, label_sparql, format="json")
+    label_rows = _select_rows(graph, label_sparql)
     labels = {}
-    for row in label_result.bindings:
+    for row in label_rows:
         s = row.get("s", "")
         label = row.get("label", "") or row.get("name", "")
         if s and label:
@@ -75,19 +107,19 @@ def _build_graph_data(store: RemainsStore) -> dict:
         FILTER(!STRSTARTS(STR(?p), "http://www.w3.org/ns/prov#"))
     }
     """
-    props_result = execute_sparql(store, props_sparql, format="json")
+    props_rows = _select_rows(graph, props_sparql)
     node_props: dict[str, dict[str, str]] = {}  # short_uri -> {prop_short: value}
-    for row in props_result.bindings:
+    for row in props_rows:
         s = row.get("s", "")
         p = row.get("p", "")
         o = row.get("o", "")
         if s and p and o:
-            s_short = shorten(s) if ":" not in s or s.startswith("http") else s
-            p_short = shorten(p) if ":" not in p or p.startswith("http") else p
+            s_short = shorten(s)
+            p_short = shorten(p)
             p_label = p_short.split(":")[-1] if ":" in p_short else p_short
             node_props.setdefault(s_short, {})[p_label] = o
 
-    for row in result.bindings:
+    for row in relationship_rows:
         s = row.get("s", "")
         p = row.get("p", "")
         o = row.get("o", "")
@@ -99,8 +131,8 @@ def _build_graph_data(store: RemainsStore) -> dict:
         if "wasDerivedFrom" in p:
             continue
 
-        s_short = shorten(s) if ":" not in s or s.startswith("http") else s
-        o_short = shorten(o) if ":" not in o or o.startswith("http") else o
+        s_short = shorten(s)
+        o_short = shorten(o)
         s_type_short = shorten(stype) if stype else ""
         o_type_short = shorten(otype) if otype else ""
 
@@ -117,7 +149,7 @@ def _build_graph_data(store: RemainsStore) -> dict:
                 "color": "#b2bec3", "edges": 0, "size": 4,
             }
 
-        p_short = shorten(p) if ":" not in p or p.startswith("http") else p
+        p_short = shorten(p)
         nodes_map[s_short]["edges"] += 1
         nodes_map[o_short]["edges"] += 1
 
@@ -147,6 +179,155 @@ def _build_graph_data(store: RemainsStore) -> dict:
         "edges": edges,
         "analytics": analytics,
     }
+
+
+def _run_construct_query(store: RemainsStore, sparql: str) -> Graph:
+    """Execute a SPARQL CONSTRUCT against the full store and return the
+    resulting subgraph as an rdflib ``Graph``.
+
+    Prefix bindings from the store are attached so the returned graph can be
+    queried / serialized with the same shortcuts as the store itself.
+    """
+    full = store.load_all_graphs()
+    prefixes = store.get_prefixes()
+    for prefix, ns in prefixes.items():
+        full.bind(prefix, Namespace(ns))
+
+    result = full.query(sparql)
+    out = Graph()
+    for prefix, ns in prefixes.items():
+        out.bind(prefix, Namespace(ns))
+
+    triples_added = 0
+    for triple in result:
+        if len(triple) != 3:
+            # SELECT / ASK was passed by mistake — surface a clear error.
+            raise ValueError(
+                "--query must be a CONSTRUCT (or DESCRIBE) that returns "
+                "triples; got a non-graph result."
+            )
+        out.add(triple)
+        triples_added += 1
+
+    # Auto-augment: pull rdf:type triples for every URI node in the subgraph
+    # from the full store, so node styling / type filtering works even when
+    # the user's CONSTRUCT didn't explicitly include type triples.
+    uri_nodes: set[URIRef] = set()
+    for s, _p, o in out:
+        if isinstance(s, URIRef):
+            uri_nodes.add(s)
+        if isinstance(o, URIRef):
+            uri_nodes.add(o)
+    for node in uri_nodes:
+        for t in full.triples((node, RDF.type, None)):
+            out.add(t)
+
+    return out
+
+
+def _focus_subgraph(store: RemainsStore, uri: str, hops: int) -> Graph:
+    """Build an N-hop undirected neighborhood around ``uri`` as an rdflib
+    ``Graph``.
+
+    Uses a Python-side BFS on the full union graph rather than a complex
+    SPARQL property path, which is both clearer and works with any SPARQL
+    engine version. The resulting subgraph contains every triple in which
+    both endpoints lie within ``hops`` of the focus node (plus literal
+    properties of those nodes).
+    """
+    if hops < 1:
+        raise ValueError(f"--hops must be >= 1 (got {hops})")
+
+    full = store.load_all_graphs()
+    prefixes = store.get_prefixes()
+    for prefix, ns in prefixes.items():
+        full.bind(prefix, Namespace(ns))
+
+    focus = URIRef(uri)
+    visited: set[URIRef] = {focus}
+    frontier: set[URIRef] = {focus}
+    for _ in range(hops):
+        next_frontier: set[URIRef] = set()
+        for node in frontier:
+            for _p, obj in full.predicate_objects(node):
+                if isinstance(obj, URIRef) and obj not in visited:
+                    next_frontier.add(obj)
+            for subj, _p in full.subject_predicates(node):
+                if isinstance(subj, URIRef) and subj not in visited:
+                    next_frontier.add(subj)
+        if not next_frontier:
+            break
+        visited.update(next_frontier)
+        frontier = next_frontier
+
+    out = Graph()
+    for prefix, ns in prefixes.items():
+        out.bind(prefix, Namespace(ns))
+    for s, p, o in full:
+        if s in visited and (not isinstance(o, URIRef) or o in visited):
+            out.add((s, p, o))
+
+    # Always include rdf:type triples for every visited node, even when the
+    # type class itself is outside the neighborhood. _build_graph_data's
+    # relationship query requires every edge endpoint to have a type, so
+    # boundary nodes would otherwise be silently dropped from the viz.
+    for node in visited:
+        for t in full.triples((node, RDF.type, None)):
+            out.add(t)
+
+    return out
+
+
+def _focus_construct(uri: str, hops: int) -> str:
+    """Return an equivalent SPARQL CONSTRUCT string for a ``--focus`` query.
+
+    This is exposed (as a helper) purely so callers / tests can inspect the
+    canonical CONSTRUCT form. The actual ``--focus`` implementation uses
+    :func:`_focus_subgraph` for correctness and performance.
+    """
+    if hops == 1:
+        return (
+            "CONSTRUCT { ?s ?p ?o } "
+            f"WHERE {{ {{ <{uri}> ?p ?o . BIND(<{uri}> AS ?s) }} "
+            f"UNION {{ ?s ?p <{uri}> . BIND(<{uri}> AS ?o) }} }}"
+        )
+    # For hops > 1 we document the intent via a property-path CONSTRUCT,
+    # but the executing path uses a Python BFS in _focus_subgraph().
+    return (
+        "CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o . "
+        f"{{ <{uri}> (!<urn:x-remains:never>|^!<urn:x-remains:never>){{0,{hops}}} ?s }} "
+        "UNION "
+        f"{{ <{uri}> (!<urn:x-remains:never>|^!<urn:x-remains:never>){{0,{hops}}} ?o }} "
+        "}"
+    )
+
+
+def export_viz_html(
+    store: RemainsStore,
+    output_path: Union[str, Path],
+    subgraph: Optional[Graph] = None,
+) -> dict:
+    """Export the interactive visualizer as a self-contained static HTML file.
+
+    Writes the same HTML the server would serve at ``/`` — same force-directed
+    graph, community detection, search, and detail panel. SSE-based live
+    annotations don't work offline (they require a running server), but every
+    other feature does.
+
+    If ``subgraph`` is provided, only that subgraph is visualized (used by
+    ``--query`` and ``--focus``).
+
+    Returns the graph data dict (same shape as :func:`_build_graph_data`) so
+    callers can report node/edge counts.
+    """
+    data = _build_graph_data(store, subgraph=subgraph)
+    html = _HTML.replace("__GRAPH_DATA__", json.dumps(data))
+    out = Path(output_path)
+    out.write_text(html, encoding="utf-8")
+    nc = len(data.get("nodes", []))
+    ec = len(data.get("edges", []))
+    print(f"remains viz export — {nc} nodes, {ec} edges -> {out}")
+    return data
 
 
 _HTML = r"""<!DOCTYPE html>
@@ -1455,10 +1636,16 @@ def serve_viz(
     port: int = 7171,
     open_browser: bool = True,
     base_url: Optional[str] = None,
+    subgraph: Optional[Graph] = None,
     _prebuilt_data: Optional[dict] = None,
 ) -> None:
-    """Build graph data and serve the interactive visualizer."""
-    data = _prebuilt_data or _build_graph_data(store)
+    """Build graph data and serve the interactive visualizer.
+
+    When ``subgraph`` is provided, the server visualizes only that subgraph
+    (used by ``--query`` / ``--focus``). The live-annotation endpoints still
+    work against whichever data set was built.
+    """
+    data = _prebuilt_data or _build_graph_data(store, subgraph=subgraph)
     html = _HTML.replace("__GRAPH_DATA__", json.dumps(data))
 
     # Shared annotation state
