@@ -1,9 +1,9 @@
-# dregs — 3 Fixed Graphs Architecture
+# remains — 3 Fixed Graphs Architecture
 
 *2026-04-12T21:49:54Z by Showboat 0.6.1*
 <!-- showboat-id: a14a3ade-cf2a-4028-8a95-1943b3035bcc -->
 
-One SQLite database = one knowledge domain. 3 fixed graphs: default (data + topics), urn:ontology (system + user vocabulary), urn:shacl (system + user shapes). System ontology ships dregs:Topic, dregs:Domain, dregs:RequiresDisplayName. Multiple domains = multiple databases.
+One SQLite database = one knowledge domain. 3 fixed graphs: default (data + topics), urn:ontology (system + user vocabulary), urn:shacl (system + user shapes). System ontology ships remains:Topic, remains:Domain, remains:RequiresDisplayName. Multiple domains = multiple databases.
 
 ## Tests
 
@@ -15,7 +15,7 @@ One SQLite database = one knowledge domain. 3 fixed graphs: default (data + topi
 ============================= test session starts ==============================
 platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /usr/bin/python3
 cachedir: .pytest_cache
-rootdir: /tmp/dregs
+rootdir: /tmp/remains
 configfile: pyproject.toml
 collecting ... collected 51 items
 
@@ -77,7 +77,7 @@ tests/test_viz.py::TestServeViz::test_serves_api_analytics PASSED        [100%]
 ## Initialize
 
 ```bash
-export PATH=$HOME/.local/bin:$PATH && DREGS_DSN=/tmp/demo.db dregs init --ontology examples/ontology.ttl --shacl examples/shapes.ttl 2>/dev/null
+export PATH=$HOME/.local/bin:$PATH && REMAINS_DSN=/tmp/demo.db remains init --ontology examples/ontology.ttl --shacl examples/shapes.ttl 2>/dev/null
 ```
 
 ```output
@@ -91,7 +91,7 @@ Initialized /tmp/demo.db
 ## Load Data
 
 ```bash
-export PATH=$HOME/.local/bin:$PATH && DREGS_DSN=/tmp/demo.db dregs load examples/data_good.ttl 2>/dev/null
+export PATH=$HOME/.local/bin:$PATH && REMAINS_DSN=/tmp/demo.db remains load examples/data_good.ttl 2>/dev/null
 ```
 
 ```output
@@ -101,7 +101,7 @@ Loaded 23 triples
 ## Info
 
 ```bash
-export PATH=$HOME/.local/bin:$PATH && DREGS_DSN=/tmp/demo.db dregs info 2>/dev/null
+export PATH=$HOME/.local/bin:$PATH && REMAINS_DSN=/tmp/demo.db remains info 2>/dev/null
 ```
 
 ```output
@@ -118,7 +118,7 @@ Topics:    0
 ## Prompt — Full Ontology
 
 ```bash
-export PATH=$HOME/.local/bin:$PATH && DREGS_DSN=/tmp/demo.db dregs prompt 2>/dev/null | head -30
+export PATH=$HOME/.local/bin:$PATH && REMAINS_DSN=/tmp/demo.db remains prompt 2>/dev/null | head -30
 ```
 
 ```output
@@ -148,16 +148,12 @@ Do NOT invent new types. Output as Turtle (TTL) format.
 ### Meeting (subclass of Activity)
   Definition: A Meeting is an Activity where agents convene to discuss topics.
   example: Weekly standup on 2026-04-01
-
-### Organization (subclass of Agent)
-  Definition: An Organization is an Agent representing a company, team, or institution.
-  example: Engineering Team
 ```
 
 ## Domains — Scoped Extraction
 
 ```bash
-export PATH=$HOME/.local/bin:$PATH && DREGS_DSN=/tmp/demo.db dregs create-domain people -n People -c http://example.com/ontology#Person -c http://example.com/ontology#Organization 2>/dev/null && DREGS_DSN=/tmp/demo.db dregs domains 2>/dev/null
+export PATH=$HOME/.local/bin:$PATH && REMAINS_DSN=/tmp/demo.db remains create-domain people -n People -c http://example.com/ontology#Person -c http://example.com/ontology#Organization 2>/dev/null && REMAINS_DSN=/tmp/demo.db remains domains 2>/dev/null
 ```
 
 ```output
@@ -166,7 +162,7 @@ Created domain 'people' with 2 classes
 ```
 
 ```bash
-export PATH=$HOME/.local/bin:$PATH && DREGS_DSN=/tmp/demo.db dregs prompt --domain people 2>/dev/null
+export PATH=$HOME/.local/bin:$PATH && REMAINS_DSN=/tmp/demo.db remains prompt --domain people 2>/dev/null
 ```
 
 ```output
@@ -198,7 +194,7 @@ Do NOT invent new types. Output as Turtle (TTL) format.
 ## Topics
 
 ```bash
-export PATH=$HOME/.local/bin:$PATH && DREGS_DSN=/tmp/demo.db dregs create-topic leadership -n 'Leadership Team' -m http://example.com/ontology#alice -m http://example.com/ontology#bob 2>/dev/null && DREGS_DSN=/tmp/demo.db dregs topics 2>/dev/null
+export PATH=$HOME/.local/bin:$PATH && REMAINS_DSN=/tmp/demo.db remains create-topic leadership -n 'Leadership Team' -m http://example.com/ontology#alice -m http://example.com/ontology#bob 2>/dev/null && REMAINS_DSN=/tmp/demo.db remains topics 2>/dev/null
 ```
 
 ```output
@@ -211,21 +207,21 @@ Created topic 'leadership' with 2 members
 ```bash
 export PATH=$HOME/.local/bin:$PATH
 cat > /tmp/evil.ttl << 'EOF'
-@prefix dregs: <urn:dregs:system#> .
+@prefix remains: <urn:remains:system#> .
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
-dregs:EvilClass a owl:Class .
+remains:EvilClass a owl:Class .
 EOF
-DREGS_DSN=/tmp/demo.db dregs update-ontology /tmp/evil.ttl 2>&1 | grep -o 'ValueError:.*'
+REMAINS_DSN=/tmp/demo.db remains update-ontology /tmp/evil.ttl 2>&1 | grep -o 'ValueError:.*'
 ```
 
 ```output
-ValueError: Cannot modify system namespace (urn:dregs:system#). Subject urn:dregs:system#EvilClass is protected.
+ValueError: Cannot modify system namespace (urn:remains:system#). Subject urn:remains:system#EvilClass is protected.
 ```
 
 ## Query
 
 ```bash
-export PATH=$HOME/.local/bin:$PATH && DREGS_DSN=/tmp/demo.db dregs query 'SELECT ?person ?org WHERE { ?person a ex:Person . ?person ex:worksAt ?org }' 2>/dev/null
+export PATH=$HOME/.local/bin:$PATH && REMAINS_DSN=/tmp/demo.db remains query 'SELECT ?person ?org WHERE { ?person a ex:Person . ?person ex:worksAt ?org }' 2>/dev/null
 ```
 
 ```output
@@ -239,11 +235,11 @@ ex:person-john | ex:org-acme
 ## Export
 
 ```bash
-export PATH=$HOME/.local/bin:$PATH && DREGS_DSN=/tmp/demo.db dregs export --what data 2>/dev/null | head -20
+export PATH=$HOME/.local/bin:$PATH && REMAINS_DSN=/tmp/demo.db remains export --what data 2>/dev/null | head -20
 ```
 
 ```output
-@prefix dregs: <urn:dregs:system#> .
+@prefix remains: <urn:remains:system#> .
 @prefix ex: <http://example.com/ontology#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
@@ -262,5 +258,5 @@ ex:doc-arch-review a ex:Document ;
     ex:title "Q3 Architecture Review" ;
     prov:wasDerivedFrom <http://example.com/docs/standup-2026-04-01.md> .
 
-<urn:dregs:topic#leadership> a dregs:Topic ;
+<urn:remains:topic#leadership> a remains:Topic ;
 ```

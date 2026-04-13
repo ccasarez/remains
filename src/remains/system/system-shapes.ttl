@@ -1,5 +1,5 @@
-@prefix dregs:    <urn:dregs:system#> .
-@prefix dregs-sh: <urn:dregs:shapes#> .
+@prefix remains:    <urn:remains:system#> .
+@prefix remains-sh: <urn:remains:shapes#> .
 @prefix sh:       <http://www.w3.org/ns/shacl#> .
 @prefix rdf:      <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> .
@@ -10,9 +10,9 @@
 @prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
 
 # Prefix declarations used by the SHACL-SPARQL constraints below.
-# The ontology node lives in the protected urn:dregs:shapes# namespace so
+# The ontology node lives in the protected urn:remains:shapes# namespace so
 # that update-shacl cannot overwrite it.
-dregs-sh:ontology a owl:Ontology ;
+remains-sh:ontology a owl:Ontology ;
     sh:declare [
         sh:prefix "rdf" ;
         sh:namespace "http://www.w3.org/1999/02/22-rdf-syntax-ns#"^^xsd:anyURI ;
@@ -31,8 +31,8 @@ dregs-sh:ontology a owl:Ontology ;
     ] .
 
 # Topic must have label and at least one member
-dregs-sh:TopicShape a sh:NodeShape ;
-    sh:targetClass dregs:Topic ;
+remains-sh:TopicShape a sh:NodeShape ;
+    sh:targetClass remains:Topic ;
     sh:property [
         sh:path rdfs:label ;
         sh:minCount 1 ;
@@ -40,25 +40,25 @@ dregs-sh:TopicShape a sh:NodeShape ;
         sh:message "Topic must have rdfs:label"
     ] ;
     sh:property [
-        sh:path dregs:member ;
+        sh:path remains:member ;
         sh:minCount 1 ;
         sh:nodeKind sh:IRI ;
         sh:message "Topic must have at least one member"
     ] ;
     sh:property [
-        sh:path dregs:createdBy ;
+        sh:path remains:createdBy ;
         sh:maxCount 1 ;
         sh:datatype xsd:string
     ] ;
     sh:property [
-        sh:path dregs:modularity ;
+        sh:path remains:modularity ;
         sh:maxCount 1 ;
         sh:datatype xsd:decimal
     ] .
 
 # Domain must have label and at least one class
-dregs-sh:DomainShape a sh:NodeShape ;
-    sh:targetClass dregs:Domain ;
+remains-sh:DomainShape a sh:NodeShape ;
+    sh:targetClass remains:Domain ;
     sh:property [
         sh:path rdfs:label ;
         sh:minCount 1 ;
@@ -66,15 +66,15 @@ dregs-sh:DomainShape a sh:NodeShape ;
         sh:message "Domain must have rdfs:label"
     ] ;
     sh:property [
-        sh:path dregs:includesClass ;
+        sh:path remains:includesClass ;
         sh:minCount 1 ;
         sh:nodeKind sh:IRI ;
         sh:message "Domain must include at least one class"
     ] .
 
 # All instances of RequiresDisplayName classes must have a display property
-dregs-sh:DisplayNameShape a sh:NodeShape ;
-    sh:targetClass dregs:RequiresDisplayName ;
+remains-sh:DisplayNameShape a sh:NodeShape ;
+    sh:targetClass remains:RequiresDisplayName ;
     sh:or (
         [ sh:path rdfs:label ; sh:minCount 1 ]
         [ sh:path skos:prefLabel ; sh:minCount 1 ]
@@ -97,13 +97,13 @@ dregs-sh:DisplayNameShape a sh:NodeShape ;
 
 # UNKNOWN_TYPE: every URI used as an rdf:type object must be declared as
 # an owl:Class or rdfs:Class in the ontology (or the SHACL shapes graph).
-# URIs in well-known W3C / dregs system namespaces are exempt.
-dregs-sh:KnownTypeShape a sh:NodeShape ;
+# URIs in well-known W3C / remains system namespaces are exempt.
+remains-sh:KnownTypeShape a sh:NodeShape ;
     sh:targetObjectsOf rdf:type ;
     sh:sparql [
         a sh:SPARQLConstraint ;
         sh:message "Type {$this} is not defined as owl:Class or rdfs:Class in the ontology (UNKNOWN_TYPE)" ;
-        sh:prefixes dregs-sh:ontology ;
+        sh:prefixes remains-sh:ontology ;
         sh:select """
             SELECT $this
             WHERE {
@@ -111,7 +111,7 @@ dregs-sh:KnownTypeShape a sh:NodeShape ;
                 FILTER NOT EXISTS { $this a rdfs:Class }
                 FILTER (!STRSTARTS(STR($this), "http://www.w3.org/"))
                 FILTER (!STRSTARTS(STR($this), "http://schema.org/"))
-                FILTER (!STRSTARTS(STR($this), "urn:dregs:"))
+                FILTER (!STRSTARTS(STR($this), "urn:remains:"))
             }
         """ ;
     ] .
@@ -119,10 +119,10 @@ dregs-sh:KnownTypeShape a sh:NodeShape ;
 # NO_TYPE: any named subject that appears in the data with at least one
 # user-namespaced predicate must carry an rdf:type. Well-known subjects
 # and bnodes are exempt.
-dregs-sh:HasTypeShape a sh:NodeShape ;
+remains-sh:HasTypeShape a sh:NodeShape ;
     sh:target [
         a sh:SPARQLTarget ;
-        sh:prefixes dregs-sh:ontology ;
+        sh:prefixes remains-sh:ontology ;
         sh:select """
             SELECT ?this
             WHERE {
@@ -131,14 +131,14 @@ dregs-sh:HasTypeShape a sh:NodeShape ;
                 FILTER NOT EXISTS { ?this a ?t }
                 FILTER (!STRSTARTS(STR(?this), "http://www.w3.org/"))
                 FILTER (!STRSTARTS(STR(?this), "http://schema.org/"))
-                FILTER (!STRSTARTS(STR(?this), "urn:dregs:"))
+                FILTER (!STRSTARTS(STR(?this), "urn:remains:"))
             }
         """ ;
     ] ;
     sh:sparql [
         a sh:SPARQLConstraint ;
         sh:message "Instance {$this} has no rdf:type (NO_TYPE)" ;
-        sh:prefixes dregs-sh:ontology ;
+        sh:prefixes remains-sh:ontology ;
         sh:select """
             SELECT $this
             WHERE {

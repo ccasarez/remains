@@ -8,7 +8,7 @@ from rdflib import OWL, RDF, RDFS, Graph, Namespace, URIRef
 from rdflib.term import Node
 
 SKOS = Namespace("http://www.w3.org/2004/02/skos/core#")
-SYSTEM_NS = "urn:dregs:system#"
+SYSTEM_NS = "urn:remains:system#"
 
 
 def _short(uri: Node) -> str:
@@ -26,7 +26,7 @@ def prompt_from_file(ontology_path: Path) -> str:
 
 
 def prompt_from_store(store, domain: Optional[str] = None) -> str:
-    """Generate prompt context from a dregs store's urn:ontology graph.
+    """Generate prompt context from a remains store's urn:ontology graph.
 
     If domain is specified, only include classes in that domain
     and properties relevant to those classes.
@@ -40,7 +40,7 @@ def prompt_from_store(store, domain: Optional[str] = None) -> str:
 
 
 def _generate_prompt(g: Graph) -> str:
-    """Generate prompt excluding system classes (dregs:Topic, dregs:Domain, etc.)."""
+    """Generate prompt excluding system classes (remains:Topic, remains:Domain, etc.)."""
     lines = ["# Ontology Schema for Extraction", ""]
     lines.append("Extract ONLY the following entity types and relationships.")
     lines.append("Do NOT invent new types. Output as Turtle (TTL) format.")
@@ -101,7 +101,7 @@ def _generate_prompt(g: Graph) -> str:
 
 def _generate_domain_prompt(g: Graph, domain: str) -> str:
     """Generate prompt filtered to classes in a specific domain."""
-    domain_uri = URIRef(f"urn:dregs:domain#{domain}")
+    domain_uri = URIRef(f"urn:remains:domain#{domain}")
 
     domain_classes: set[URIRef] = set()
     for cls in g.objects(domain_uri, URIRef(f"{SYSTEM_NS}includesClass")):

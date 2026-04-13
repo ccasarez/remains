@@ -1,4 +1,4 @@
-"""CLI for dregs: SQLite-backed RDF triple store."""
+"""CLI for remains: SQLite-backed RDF triple store."""
 from __future__ import annotations
 
 import json
@@ -7,8 +7,8 @@ from pathlib import Path
 
 import click
 
-from dregs.models import ValidationResult
-from dregs.store import DregsStore, validate_files
+from remains.models import ValidationResult
+from remains.store import RemainsStore, validate_files
 
 
 _SQLITE_MAGIC = b"SQLite format 3\x00"
@@ -17,16 +17,16 @@ _LOCAL_DB_HINT = (
     "Hint: This database is local to this machine. For cloud sync or sharing,\n"
     "set up Turso embedded replicas:\n"
     "\n"
-    "  export DREGS_DSN=$XDG_DATA_HOME/dregs/dregs.db\n"
-    "  export DREGS_SYNC_URL=libsql://your-db.turso.io\n"
-    "  export DREGS_AUTH_TOKEN=your-token\n"
+    "  export REMAINS_DSN=$XDG_DATA_HOME/remains/remains.db\n"
+    "  export REMAINS_SYNC_URL=libsql://your-db.turso.io\n"
+    "  export REMAINS_AUTH_TOKEN=your-token\n"
     "\n"
-    "See dregs --help or https://docs.turso.tech for setup.\n"
+    "See remains --help or https://docs.turso.tech for setup.\n"
 )
 
 
-def _open_store(db: Path | None) -> DregsStore:
-    store = DregsStore(db)
+def _open_store(db: Path | None) -> RemainsStore:
+    store = RemainsStore(db)
     if store._used_default:
         click.echo(f"Using default database: {store._dsn}", err=True)
         click.echo(_LOCAL_DB_HINT, err=True)
@@ -44,7 +44,7 @@ def _is_sqlite(path: Path) -> bool:
 @click.group()
 @click.version_option(version="0.2.0")
 def cli():
-    """dregs: SQLite RDF triple store with 3 fixed graphs.
+    """remains: SQLite RDF triple store with 3 fixed graphs.
 
     \b
     Architecture:
@@ -54,23 +54,23 @@ def cli():
 
     \b
     Quick start:
-      dregs init --ontology ontology.ttl --shacl shapes.ttl
-      dregs load data.ttl
-      dregs query "SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10"
-      dregs prompt
-      dregs prompt --domain people
+      remains init --ontology ontology.ttl --shacl shapes.ttl
+      remains load data.ttl
+      remains query "SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10"
+      remains prompt
+      remains prompt --domain people
 
     \b
     Multiple domains = multiple databases:
-      DREGS_DSN=meetings.db dregs init --ontology meetings.ttl --shacl meetings-shapes.ttl
-      DREGS_DSN=finance.db dregs init --ontology finance.ttl --shacl finance-shapes.ttl
+      REMAINS_DSN=meetings.db remains init --ontology meetings.ttl --shacl meetings-shapes.ttl
+      REMAINS_DSN=finance.db remains init --ontology finance.ttl --shacl finance-shapes.ttl
 
     \b
     Environment variables:
-      DREGS_DSN         Database file path or libsql:// URL.
-      DREGS_SYNC_URL    Turso cloud URL for embedded replica mode.
-      DREGS_AUTH_TOKEN   Auth token for Turso Cloud.
-      DREGS_VIZ_URL     Base URL for viz. Use {port} as placeholder.
+      REMAINS_DSN         Database file path or libsql:// URL.
+      REMAINS_SYNC_URL    Turso cloud URL for embedded replica mode.
+      REMAINS_AUTH_TOKEN   Auth token for Turso Cloud.
+      REMAINS_VIZ_URL     Base URL for viz. Use {port} as placeholder.
     """
     pass
 
@@ -139,14 +139,14 @@ def load(data: Path, db: Path | None, as_json: bool):
 @click.option("--regime", "-r", type=click.Choice(["none", "rdfs", "owlrl", "both"]), default="none")
 @click.option("--json", "as_json", is_flag=True)
 def check(source: Path, data: Path, shacl: Path | None, regime: str, as_json: bool):
-    """Validate RDF data against an ontology or dregs database.
+    """Validate RDF data against an ontology or remains database.
 
     \b
-    SOURCE  dregs database or OWL ontology (.ttl)
+    SOURCE  remains database or OWL ontology (.ttl)
     DATA    Turtle file to validate
     """
     if _is_sqlite(source):
-        store = DregsStore(source)
+        store = RemainsStore(source)
         try:
             conn = store._connect()
             schema_graph = store._load_graph(conn, "urn:ontology")
@@ -161,7 +161,7 @@ def check(source: Path, data: Path, shacl: Path | None, regime: str, as_json: bo
             data_graph = Graph()
             data_graph.parse(str(data), format="turtle")
 
-            from dregs.store import run_validation
+            from remains.store import run_validation
             result = run_validation(
                 schema_graph=schema_graph,
                 data_graph=data_graph,
@@ -192,7 +192,7 @@ def check(source: Path, data: Path, shacl: Path | None, regime: str, as_json: bo
 @click.option("--format", "-f", "fmt", type=click.Choice(["table", "json", "turtle"]), default="table")
 def query(sparql: str, db: Path | None, fmt: str):
     """Execute a SPARQL query against the store."""
-    from dregs.sparql import execute_sparql
+    from remains.sparql import execute_sparql
 
     store = _open_store(db)
     try:
@@ -239,19 +239,19 @@ def prompt(source: Path | None, db: str | None, domain: str | None):
 
     \b
     Three modes:
-      dregs prompt                  Use --db or DREGS_DSN
-      dregs prompt my.db            Extract from DB's ontology
-      dregs prompt ontology.ttl     Standalone from file
+      remains prompt                  Use --db or REMAINS_DSN
+      remains prompt my.db            Extract from DB's ontology
+      remains prompt ontology.ttl     Standalone from file
 
     \b
     --domain filters to classes in a named domain.
     """
-    from dregs.prompt import prompt_from_file, prompt_from_store
+    from remains.prompt import prompt_from_file, prompt_from_store
 
     if source is not None and not _is_sqlite(source):
         click.echo(prompt_from_file(source))
     else:
-        store = DregsStore(source or db)
+        store = RemainsStore(source or db)
         try:
             click.echo(prompt_from_store(store, domain=domain))
         finally:
@@ -383,10 +383,10 @@ def update_shacl(shacl: Path, db: Path | None):
 @click.option("--no-open", is_flag=True)
 def viz(db: Path | None, port: int, no_open: bool):
     """Launch interactive knowledge graph visualizer."""
-    from dregs.viz import serve_viz
+    from remains.viz import serve_viz
 
     import os
-    base_url = os.environ.get("DREGS_VIZ_URL")
+    base_url = os.environ.get("REMAINS_VIZ_URL")
     if base_url and "{port}" in base_url:
         base_url = base_url.replace("{port}", str(port))
     store = _open_store(db)
@@ -410,7 +410,7 @@ def viz(db: Path | None, port: int, no_open: bool):
 @click.option("--neighbors/--no-neighbors", default=False)
 @click.option("--host", default="localhost")
 def annotate(annotation_type, port, text, community, node, color, duration, neighbors, host):
-    """Send annotations to a running dregs viz server."""
+    """Send annotations to a running remains viz server."""
     import urllib.request
     import urllib.error
 
@@ -448,7 +448,7 @@ def annotate(annotation_type, port, text, community, node, color, duration, neig
             sys.exit(1)
     except urllib.error.URLError as e:
         click.echo(f"Cannot reach viz server at {url}: {e}")
-        click.echo("Is 'dregs viz' running?")
+        click.echo("Is 'remains viz' running?")
         sys.exit(1)
 
 

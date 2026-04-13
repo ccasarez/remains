@@ -10,7 +10,7 @@ from typing import Optional
 from rdflib import RDF, RDFS, Graph, Literal, Namespace, URIRef, BNode
 from rdflib.term import Node
 
-from dregs.models import Triple, ValidationResult
+from remains.models import Triple, ValidationResult
 
 SH = Namespace("http://www.w3.org/ns/shacl#")
 
@@ -52,8 +52,8 @@ _DEFAULT_PREFIXES = {
     "skos": "http://www.w3.org/2004/02/skos/core#",
     "prov": "http://www.w3.org/ns/prov#",
     "sh": "http://www.w3.org/ns/shacl#",
-    "dregs": "urn:dregs:system#",
-    "dregs-sh": "urn:dregs:shapes#",
+    "remains": "urn:remains:system#",
+    "remains-sh": "urn:remains:shapes#",
 }
 
 
@@ -120,7 +120,7 @@ def _rows_to_rdflib_graph(rows: list[tuple]) -> Graph:
     return g
 
 
-class DregsStore:
+class RemainsStore:
     """SQLite-backed RDF triple store with 3 fixed graphs.
 
     Graphs:
@@ -129,14 +129,14 @@ class DregsStore:
         'urn:shacl'    — system shapes + user shapes
     """
 
-    _XDG_DEFAULT_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "dregs"
-    _XDG_DEFAULT_DB = _XDG_DEFAULT_DIR / "dregs.db"
+    _XDG_DEFAULT_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "remains"
+    _XDG_DEFAULT_DB = _XDG_DEFAULT_DIR / "remains.db"
     _SYSTEM_ONTOLOGY = Path(__file__).parent / "system" / "system-ontology.ttl"
     _SYSTEM_SHAPES = Path(__file__).parent / "system" / "system-shapes.ttl"
-    _SYSTEM_NAMESPACES = ("urn:dregs:system#", "urn:dregs:shapes#")
+    _SYSTEM_NAMESPACES = ("urn:remains:system#", "urn:remains:shapes#")
 
     def __init__(self, dsn: str | Path | None = None):
-        resolved = dsn if dsn is not None else os.environ.get("DREGS_DSN")
+        resolved = dsn if dsn is not None else os.environ.get("REMAINS_DSN")
         self._used_default = False
         if resolved is None:
             self._XDG_DEFAULT_DIR.mkdir(parents=True, exist_ok=True)
@@ -159,14 +159,14 @@ class DregsStore:
             import libsql
             self._conn = libsql.connect(
                 database=dsn,
-                auth_token=os.environ.get("DREGS_AUTH_TOKEN", "").strip(),
+                auth_token=os.environ.get("REMAINS_AUTH_TOKEN", "").strip(),
             )
-        elif os.environ.get("DREGS_SYNC_URL", "").strip():
+        elif os.environ.get("REMAINS_SYNC_URL", "").strip():
             import libsql
             self._conn = libsql.connect(
                 database=dsn,
-                sync_url=os.environ["DREGS_SYNC_URL"].strip(),
-                auth_token=os.environ.get("DREGS_AUTH_TOKEN", "").strip(),
+                sync_url=os.environ["REMAINS_SYNC_URL"].strip(),
+                auth_token=os.environ.get("REMAINS_AUTH_TOKEN", "").strip(),
             )
             self._conn.sync()
         else:
@@ -282,7 +282,7 @@ class DregsStore:
         shacl_graph = self._load_graph(conn, "urn:shacl")
 
         if len(schema_graph) == 0:
-            raise ValueError("No ontology loaded. Run 'dregs init' first.")
+            raise ValueError("No ontology loaded. Run 'remains init' first.")
 
         result = run_validation(
             schema_graph=schema_graph,
@@ -353,7 +353,7 @@ class DregsStore:
         self._check_no_system_namespace(ontology_path)
         conn = self._connect()
         conn.execute(
-            "DELETE FROM triples WHERE graph = 'urn:ontology' AND subject NOT LIKE 'urn:dregs:%'",
+            "DELETE FROM triples WHERE graph = 'urn:ontology' AND subject NOT LIKE 'urn:remains:%'",
         )
         g = Graph()
         g.parse(str(ontology_path), format="turtle")
@@ -366,7 +366,7 @@ class DregsStore:
         self._check_no_system_namespace(shacl_path)
         conn = self._connect()
         conn.execute(
-            "DELETE FROM triples WHERE graph = 'urn:shacl' AND subject NOT LIKE 'urn:dregs:%'",
+            "DELETE FROM triples WHERE graph = 'urn:shacl' AND subject NOT LIKE 'urn:remains:%'",
         )
         g = Graph()
         g.parse(str(shacl_path), format="turtle")
@@ -405,13 +405,13 @@ class DregsStore:
         elif what == "ontology":
             rows = conn.execute(
                 "SELECT subject, predicate, object, object_type, datatype, lang "
-                "FROM triples WHERE graph = 'urn:ontology' AND subject NOT LIKE 'urn:dregs:%'",
+                "FROM triples WHERE graph = 'urn:ontology' AND subject NOT LIKE 'urn:remains:%'",
             ).fetchall()
             g = _rows_to_rdflib_graph(rows)
         elif what == "shacl":
             rows = conn.execute(
                 "SELECT subject, predicate, object, object_type, datatype, lang "
-                "FROM triples WHERE graph = 'urn:shacl' AND subject NOT LIKE 'urn:dregs:%'",
+                "FROM triples WHERE graph = 'urn:shacl' AND subject NOT LIKE 'urn:remains:%'",
             ).fetchall()
             g = _rows_to_rdflib_graph(rows)
         elif what == "all":
@@ -441,12 +441,12 @@ class DregsStore:
 
         topic_count = conn.execute(
             "SELECT COUNT(DISTINCT subject) FROM triples WHERE graph = '' AND predicate = ? AND object = ?",
-            (str(RDF.type), "urn:dregs:system#Topic"),
+            (str(RDF.type), "urn:remains:system#Topic"),
         ).fetchone()[0]
 
         domain_count = conn.execute(
             "SELECT COUNT(DISTINCT subject) FROM triples WHERE graph = 'urn:ontology' AND predicate = ? AND object = ?",
-            (str(RDF.type), "urn:dregs:system#Domain"),
+            (str(RDF.type), "urn:remains:system#Domain"),
         ).fetchone()[0]
 
         return {
@@ -472,15 +472,15 @@ class DregsStore:
     def create_domain(self, slug: str, label: str, class_uris: list[str]):
         """Create a domain in urn:ontology graph."""
         conn = self._connect()
-        domain_uri = f"urn:dregs:domain#{slug}"
+        domain_uri = f"urn:remains:domain#{slug}"
         rows = [
-            (domain_uri, str(RDF.type), "urn:dregs:system#Domain", "uri", "", "", "urn:ontology"),
+            (domain_uri, str(RDF.type), "urn:remains:system#Domain", "uri", "", "", "urn:ontology"),
             (domain_uri, str(RDFS.label), label, "typed_literal",
              str(URIRef("http://www.w3.org/2001/XMLSchema#string")), "", "urn:ontology"),
         ]
         for cls_uri in class_uris:
             rows.append(
-                (domain_uri, "urn:dregs:system#includesClass", cls_uri, "uri", "", "", "urn:ontology"),
+                (domain_uri, "urn:remains:system#includesClass", cls_uri, "uri", "", "", "urn:ontology"),
             )
         conn.executemany(
             """INSERT OR IGNORE INTO triples
@@ -493,9 +493,9 @@ class DregsStore:
     def add_to_domain(self, slug: str, class_uris: list[str]):
         """Add classes to an existing domain."""
         conn = self._connect()
-        domain_uri = f"urn:dregs:domain#{slug}"
+        domain_uri = f"urn:remains:domain#{slug}"
         rows = [
-            (domain_uri, "urn:dregs:system#includesClass", cls_uri, "uri", "", "", "urn:ontology")
+            (domain_uri, "urn:remains:system#includesClass", cls_uri, "uri", "", "", "urn:ontology")
             for cls_uri in class_uris
         ]
         conn.executemany(
@@ -511,7 +511,7 @@ class DregsStore:
         conn = self._connect()
         domain_uris = conn.execute(
             "SELECT DISTINCT subject FROM triples WHERE graph = 'urn:ontology' AND predicate = ? AND object = ?",
-            (str(RDF.type), "urn:dregs:system#Domain"),
+            (str(RDF.type), "urn:remains:system#Domain"),
         ).fetchall()
 
         domains = []
@@ -522,7 +522,7 @@ class DregsStore:
             ).fetchone()
             classes = conn.execute(
                 "SELECT object FROM triples WHERE graph = 'urn:ontology' AND subject = ? AND predicate = ?",
-                (uri, "urn:dregs:system#includesClass"),
+                (uri, "urn:remains:system#includesClass"),
             ).fetchall()
             domains.append({
                 "uri": uri,
@@ -539,15 +539,15 @@ class DregsStore:
     def create_topic(self, slug: str, label: str, member_uris: list[str]):
         """Create a topic in default data graph."""
         conn = self._connect()
-        topic_uri = f"urn:dregs:topic#{slug}"
+        topic_uri = f"urn:remains:topic#{slug}"
         rows = [
-            (topic_uri, str(RDF.type), "urn:dregs:system#Topic", "uri", "", "", ""),
+            (topic_uri, str(RDF.type), "urn:remains:system#Topic", "uri", "", "", ""),
             (topic_uri, str(RDFS.label), label, "typed_literal",
              str(URIRef("http://www.w3.org/2001/XMLSchema#string")), "", ""),
         ]
         for member_uri in member_uris:
             rows.append(
-                (topic_uri, "urn:dregs:system#member", member_uri, "uri", "", "", ""),
+                (topic_uri, "urn:remains:system#member", member_uri, "uri", "", "", ""),
             )
         conn.executemany(
             """INSERT OR IGNORE INTO triples
@@ -562,7 +562,7 @@ class DregsStore:
         conn = self._connect()
         topic_uris = conn.execute(
             "SELECT DISTINCT subject FROM triples WHERE graph = '' AND predicate = ? AND object = ?",
-            (str(RDF.type), "urn:dregs:system#Topic"),
+            (str(RDF.type), "urn:remains:system#Topic"),
         ).fetchall()
 
         topics = []
@@ -573,7 +573,7 @@ class DregsStore:
             ).fetchone()
             members = conn.execute(
                 "SELECT object FROM triples WHERE graph = '' AND subject = ? AND predicate = ?",
-                (uri, "urn:dregs:system#member"),
+                (uri, "urn:remains:system#member"),
             ).fetchall()
             topics.append({
                 "uri": uri,
@@ -605,7 +605,7 @@ def run_validation(
     SHACL targets (especially SPARQL-based targets enabled by ``advanced=True``),
     shapes that target ``owl:Class`` or ``owl:ObjectProperty`` will match
     ontology nodes — not just user data. Any such violations are filtered out
-    here so ``dregs load`` only polices instance data, not the ontology that
+    here so ``remains load`` only polices instance data, not the ontology that
     informs it.
     """
     from pyshacl import validate

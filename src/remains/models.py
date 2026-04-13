@@ -1,4 +1,4 @@
-"""Data models for dregs."""
+"""Data models for remains."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -14,7 +14,7 @@ class Triple:
     object_type: str  # uri, literal, typed_literal, lang_literal
     datatype: Optional[str] = None
     lang: Optional[str] = None
-    graph: str = "urn:dregs:data"
+    graph: str = "urn:remains:data"
 
 
 
@@ -27,7 +27,7 @@ class ValidationResult:
 
     def summary(self) -> str:
         lines = [
-            "=== dregs check ===",
+            "=== remains check ===",
             f"SHACL conforms:           {self.shacl_conforms}",
             f"SHACL violations:         {len(self.shacl_violations)}",
             f"Overall:                  {'PASS' if self.conforms else 'FAIL'}",
