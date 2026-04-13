@@ -1,4 +1,4 @@
-"""Tests for dregs: 3 fixed graphs, system/user split, topics, domains."""
+"""Tests for remains: 3 fixed graphs, system/user split, topics, domains."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,13 +6,13 @@ from pathlib import Path
 import pytest
 from rdflib import Graph, Literal, URIRef, Namespace, RDF, RDFS, OWL, XSD
 
-from dregs.store import DregsStore
+from remains.store import RemainsStore
 
 EXAMPLES_ROOT = Path(__file__).parent.parent / "examples"
-SYSTEM_DIR = Path(__file__).parent.parent / "src" / "dregs" / "system"
+SYSTEM_DIR = Path(__file__).parent.parent / "src" / "remains" / "system"
 
-DREGS = Namespace("urn:dregs:system#")
-DREGS_SH = Namespace("urn:dregs:shapes#")
+REMAINS = Namespace("urn:remains:system#")
+REMAINS_SH = Namespace("urn:remains:shapes#")
 EX = Namespace("http://example.com/ontology#")
 
 
@@ -22,11 +22,11 @@ EX = Namespace("http://example.com/ontology#")
 
 
 class TestInit:
-    """dregs init creates 3-graph structure with system + user ontology/shapes."""
+    """remains init creates 3-graph structure with system + user ontology/shapes."""
 
     def test_init_creates_three_graphs(self, tmp_path):
         """Init should create exactly 3 graphs: default, urn:ontology, urn:shacl."""
-        db = DregsStore(tmp_path / "test.db")
+        db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=EXAMPLES_ROOT / "ontology.ttl",
             shacl_path=EXAMPLES_ROOT / "shapes.ttl",
@@ -46,32 +46,32 @@ class TestInit:
         db.close()
 
     def test_init_loads_system_ontology(self, tmp_path):
-        """System ontology (dregs:Topic, dregs:Domain, etc.) must be in urn:ontology."""
-        db = DregsStore(tmp_path / "test.db")
+        """System ontology (remains:Topic, remains:Domain, etc.) must be in urn:ontology."""
+        db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=EXAMPLES_ROOT / "ontology.ttl",
             shacl_path=EXAMPLES_ROOT / "shapes.ttl",
         )
 
         conn = db._connect()
-        # Check dregs:Topic class exists
+        # Check remains:Topic class exists
         topic_exists = conn.execute(
             "SELECT COUNT(*) FROM triples WHERE subject = ? AND predicate = ? AND graph = ?",
-            (str(DREGS.Topic), str(RDF.type), "urn:ontology"),
+            (str(REMAINS.Topic), str(RDF.type), "urn:ontology"),
         ).fetchone()[0]
         assert topic_exists > 0
 
-        # Check dregs:Domain class exists
+        # Check remains:Domain class exists
         domain_exists = conn.execute(
             "SELECT COUNT(*) FROM triples WHERE subject = ? AND predicate = ? AND graph = ?",
-            (str(DREGS.Domain), str(RDF.type), "urn:ontology"),
+            (str(REMAINS.Domain), str(RDF.type), "urn:ontology"),
         ).fetchone()[0]
         assert domain_exists > 0
         db.close()
 
     def test_init_loads_user_ontology(self, tmp_path):
         """User ontology classes must also be in urn:ontology."""
-        db = DregsStore(tmp_path / "test.db")
+        db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=EXAMPLES_ROOT / "ontology.ttl",
             shacl_path=EXAMPLES_ROOT / "shapes.ttl",
@@ -87,8 +87,8 @@ class TestInit:
         db.close()
 
     def test_init_loads_system_shapes(self, tmp_path):
-        """System shapes (dregs-sh:TopicShape, etc.) must be in urn:shacl."""
-        db = DregsStore(tmp_path / "test.db")
+        """System shapes (remains-sh:TopicShape, etc.) must be in urn:shacl."""
+        db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=EXAMPLES_ROOT / "ontology.ttl",
             shacl_path=EXAMPLES_ROOT / "shapes.ttl",
@@ -97,14 +97,14 @@ class TestInit:
         conn = db._connect()
         topic_shape = conn.execute(
             "SELECT COUNT(*) FROM triples WHERE subject = ? AND graph = ?",
-            (str(DREGS_SH.TopicShape), "urn:shacl"),
+            (str(REMAINS_SH.TopicShape), "urn:shacl"),
         ).fetchone()[0]
         assert topic_shape > 0
         db.close()
 
     def test_init_loads_user_shapes(self, tmp_path):
         """User shapes must also be in urn:shacl."""
-        db = DregsStore(tmp_path / "test.db")
+        db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=EXAMPLES_ROOT / "ontology.ttl",
             shacl_path=EXAMPLES_ROOT / "shapes.ttl",
@@ -113,7 +113,7 @@ class TestInit:
         conn = db._connect()
         # The examples/shapes.ttl has shapes — check any user shape exists
         user_shapes = conn.execute(
-            "SELECT COUNT(*) FROM triples WHERE graph = ? AND subject NOT LIKE 'urn:dregs:%'",
+            "SELECT COUNT(*) FROM triples WHERE graph = ? AND subject NOT LIKE 'urn:remains:%'",
             ("urn:shacl",),
         ).fetchone()[0]
         assert user_shapes > 0
@@ -125,7 +125,7 @@ class TestLoad:
 
     @pytest.fixture
     def store(self, tmp_path):
-        db = DregsStore(tmp_path / "test.db")
+        db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=EXAMPLES_ROOT / "ontology.ttl",
             shacl_path=EXAMPLES_ROOT / "shapes.ttl",
@@ -171,14 +171,14 @@ class TestOntologyShapesAreNotDataTargets:
     ``advanced=True``, pyshacl merges the ontology into the data graph for
     target evaluation, which used to produce hundreds of spurious violations
     against the gist ontology itself whenever a user loaded *any* data file.
-    ``dregs load`` should only police the user's data, not the ontology.
+    ``remains load`` should only police the user's data, not the ontology.
     """
 
     GIST_ROOT = EXAMPLES_ROOT / "gist"
 
     @pytest.fixture
     def store(self, tmp_path):
-        db = DregsStore(tmp_path / "test.db")
+        db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=self.GIST_ROOT / "ontology.ttl",
             shacl_path=self.GIST_ROOT / "shapes.ttl",
@@ -209,7 +209,7 @@ ex:alice a gist:Person ;
         """run_validation drops violations whose focus node is only in the ontology."""
         from rdflib import Graph
 
-        from dregs.store import run_validation
+        from remains.store import run_validation
 
         ontology = Graph()
         ontology.parse(
@@ -269,11 +269,11 @@ ex:alice a cls:Person .
 
 
 class TestPrompt:
-    """dregs prompt generates from urn:ontology graph."""
+    """remains prompt generates from urn:ontology graph."""
 
     @pytest.fixture
     def store(self, tmp_path):
-        db = DregsStore(tmp_path / "test.db")
+        db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=EXAMPLES_ROOT / "ontology.ttl",
             shacl_path=EXAMPLES_ROOT / "shapes.ttl",
@@ -283,7 +283,7 @@ class TestPrompt:
 
     def test_prompt_includes_user_classes(self, store):
         """Prompt should include user ontology classes."""
-        from dregs.prompt import prompt_from_store
+        from remains.prompt import prompt_from_store
 
         output = prompt_from_store(store)
         assert "Person" in output
@@ -292,7 +292,7 @@ class TestPrompt:
 
     def test_prompt_excludes_system_classes(self, store):
         """Prompt should NOT include system classes (Topic, Domain)."""
-        from dregs.prompt import prompt_from_store
+        from remains.prompt import prompt_from_store
 
         output = prompt_from_store(store)
         assert "Topic" not in output
@@ -300,23 +300,23 @@ class TestPrompt:
 
 
 class TestPromptDomain:
-    """dregs prompt --domain filters to domain classes only."""
+    """remains prompt --domain filters to domain classes only."""
 
     @pytest.fixture
     def store_with_domain(self, tmp_path):
-        db = DregsStore(tmp_path / "test.db")
+        db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=EXAMPLES_ROOT / "ontology.ttl",
             shacl_path=EXAMPLES_ROOT / "shapes.ttl",
         )
         # Add a domain to urn:ontology
         conn = db._connect()
-        domain_uri = "urn:dregs:domain#people"
+        domain_uri = "urn:remains:domain#people"
         triples = [
-            (domain_uri, str(RDF.type), str(DREGS.Domain), "uri", "", "", "urn:ontology"),
+            (domain_uri, str(RDF.type), str(REMAINS.Domain), "uri", "", "", "urn:ontology"),
             (domain_uri, str(RDFS.label), "People", "typed_literal", str(XSD.string), "", "urn:ontology"),
-            (domain_uri, str(DREGS.includesClass), str(EX.Person), "uri", "", "", "urn:ontology"),
-            (domain_uri, str(DREGS.includesClass), str(EX.Organization), "uri", "", "", "urn:ontology"),
+            (domain_uri, str(REMAINS.includesClass), str(EX.Person), "uri", "", "", "urn:ontology"),
+            (domain_uri, str(REMAINS.includesClass), str(EX.Organization), "uri", "", "", "urn:ontology"),
         ]
         conn.executemany(
             """INSERT OR IGNORE INTO triples
@@ -330,7 +330,7 @@ class TestPromptDomain:
 
     def test_prompt_domain_filters_classes(self, store_with_domain):
         """Prompt with domain should only include domain classes as entity types."""
-        from dregs.prompt import prompt_from_store
+        from remains.prompt import prompt_from_store
 
         output = prompt_from_store(store_with_domain, domain="people")
         # Classes in domain appear as headers
@@ -342,7 +342,7 @@ class TestPromptDomain:
 
     def test_prompt_domain_includes_properties(self, store_with_domain):
         """Prompt with domain should include properties relevant to domain classes."""
-        from dregs.prompt import prompt_from_store
+        from remains.prompt import prompt_from_store
 
         output = prompt_from_store(store_with_domain, domain="people")
         assert "worksAt" in output  # Person -> Organization
@@ -353,7 +353,7 @@ class TestNamespaceProtection:
 
     @pytest.fixture
     def store(self, tmp_path):
-        db = DregsStore(tmp_path / "test.db")
+        db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=EXAMPLES_ROOT / "ontology.ttl",
             shacl_path=EXAMPLES_ROOT / "shapes.ttl",
@@ -365,12 +365,12 @@ class TestNamespaceProtection:
         """Updating ontology with system namespace triples should fail."""
         evil = tmp_path / "evil.ttl"
         evil.write_text("""
-@prefix dregs: <urn:dregs:system#> .
+@prefix remains: <urn:remains:system#> .
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
-dregs:Topic rdfs:label "Hacked" .
-dregs:EvilClass a owl:Class .
+remains:Topic rdfs:label "Hacked" .
+remains:EvilClass a owl:Class .
 """)
         with pytest.raises(ValueError, match="system namespace"):
             store.update_ontology(evil)
@@ -379,10 +379,10 @@ dregs:EvilClass a owl:Class .
         """Updating shapes with system namespace triples should fail."""
         evil = tmp_path / "evil-shapes.ttl"
         evil.write_text("""
-@prefix dregs-sh: <urn:dregs:shapes#> .
+@prefix remains-sh: <urn:remains:shapes#> .
 @prefix sh: <http://www.w3.org/ns/shacl#> .
 
-dregs-sh:TopicShape sh:deactivated true .
+remains-sh:TopicShape sh:deactivated true .
 """)
         with pytest.raises(ValueError, match="system namespace"):
             store.update_shacl(evil)
@@ -393,7 +393,7 @@ class TestExport:
 
     @pytest.fixture
     def store(self, tmp_path):
-        db = DregsStore(tmp_path / "test.db")
+        db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=EXAMPLES_ROOT / "ontology.ttl",
             shacl_path=EXAMPLES_ROOT / "shapes.ttl",
@@ -415,7 +415,7 @@ class TestExport:
         """Export user ontology triples only (no system)."""
         ttl = store.export("ontology")
         assert len(ttl) > 0
-        assert "dregs:system" not in ttl.lower() or "urn:dregs:system" not in ttl
+        assert "remains:system" not in ttl.lower() or "urn:remains:system" not in ttl
 
     def test_export_all(self, store):
         """Export everything."""
@@ -430,7 +430,7 @@ class TestInfo:
 
     @pytest.fixture
     def store(self, tmp_path):
-        db = DregsStore(tmp_path / "test.db")
+        db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=EXAMPLES_ROOT / "ontology.ttl",
             shacl_path=EXAMPLES_ROOT / "shapes.ttl",
@@ -460,7 +460,7 @@ class TestDomains:
 
     @pytest.fixture
     def store(self, tmp_path):
-        db = DregsStore(tmp_path / "test.db")
+        db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=EXAMPLES_ROOT / "ontology.ttl",
             shacl_path=EXAMPLES_ROOT / "shapes.ttl",
@@ -501,7 +501,7 @@ class TestTopics:
 
     @pytest.fixture
     def store(self, tmp_path):
-        db = DregsStore(tmp_path / "test.db")
+        db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=EXAMPLES_ROOT / "ontology.ttl",
             shacl_path=EXAMPLES_ROOT / "shapes.ttl",
@@ -524,7 +524,7 @@ class TestTopics:
 
         conn = store._connect()
         topic_triples = conn.execute(
-            "SELECT COUNT(*) FROM triples WHERE graph = '' AND subject LIKE 'urn:dregs:topic%'"
+            "SELECT COUNT(*) FROM triples WHERE graph = '' AND subject LIKE 'urn:remains:topic%'"
         ).fetchone()[0]
         assert topic_triples > 0
 
@@ -544,7 +544,7 @@ class TestDisplayNames:
 
     @pytest.fixture
     def store(self, tmp_path):
-        db = DregsStore(tmp_path / "test.db")
+        db = RemainsStore(tmp_path / "test.db")
         db.init(
             ontology_path=EXAMPLES_ROOT / "ontology.ttl",
             shacl_path=EXAMPLES_ROOT / "shapes.ttl",
@@ -555,7 +555,7 @@ class TestDisplayNames:
 
     def test_display_name_from_rdfs_label(self, store):
         """Should find rdfs:label."""
-        from dregs.display import get_display_name
+        from remains.display import get_display_name
 
         # Add rdfs:label to an entity
         conn = store._connect()
@@ -572,14 +572,14 @@ class TestDisplayNames:
 
     def test_display_name_fallback_to_uri(self, store):
         """Should fall back to URI fragment when no display property exists."""
-        from dregs.display import get_display_name
+        from remains.display import get_display_name
 
         name = get_display_name("http://example.com/test#SomeEntity", store)
         assert name == "SomeEntity"
 
     def test_display_name_uri_path_fallback(self, store):
         """Should fall back to last path segment when no fragment."""
-        from dregs.display import get_display_name
+        from remains.display import get_display_name
 
         name = get_display_name("http://example.com/things/my-thing", store)
         assert name == "my-thing"

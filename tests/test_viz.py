@@ -6,16 +6,16 @@ import urllib.request
 
 import pytest
 
-from dregs.store import DregsStore
-from dregs.viz import _build_graph_data, serve_viz
-from dregs.analytics import compute_analytics
+from remains.store import RemainsStore
+from remains.viz import _build_graph_data, serve_viz
+from remains.analytics import compute_analytics
 
 
 @pytest.fixture
 def loaded_store(tmp_path):
     """Create a store with schema and sample data."""
     db = tmp_path / "test.db"
-    store = DregsStore(str(db))
+    store = RemainsStore(str(db))
 
     schema = tmp_path / "schema.ttl"
     schema.write_text("""
@@ -239,7 +239,7 @@ class TestServeViz:
 
         resp = urllib.request.urlopen(f"http://localhost:{port}/")
         html = resp.read().decode()
-        assert "dregs" in html
+        assert "remains" in html
         assert "analytics" in html  # JSON data contains analytics key
         assert "communities" in html
         assert resp.status == 200

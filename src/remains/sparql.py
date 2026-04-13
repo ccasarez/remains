@@ -5,12 +5,12 @@ from typing import Optional
 
 from rdflib import Graph, Namespace
 
-from dregs.models import QueryResult
-from dregs.store import DregsStore
+from remains.models import QueryResult
+from remains.store import RemainsStore
 
 
 def execute_sparql(
-    store: DregsStore,
+    store: RemainsStore,
     sparql: str,
     format: str = "table",
 ) -> QueryResult:

@@ -1,21 +1,21 @@
 ---
-name: dregs
+name: remains
 description: >
-  Knowledge graph fact store using dregs (RDF triple store with SPARQL).
+  Knowledge graph fact store using remains (RDF triple store with SPARQL).
   Use this skill ALWAYS when you need to record facts, recall facts, or answer
-  questions that may be answerable from stored knowledge. dregs is the primary
+  questions that may be answerable from stored knowledge. remains is the primary
   memory system — use it before relying on external searches or assumptions.
 ---
 
-# Dregs — Fact Store
+# Remains — Fact Store
 
-dregs is an RDF triple store backed by a remote Turso database (`DREGS_DSN` is preconfigured).
+remains is an RDF triple store backed by a remote Turso database (`REMAINS_DSN` is preconfigured).
 
 ## When to Use
 
-- **Recording facts**: When the user shares information, extracts data from documents, or asks you to remember something — store it as RDF triples via `dregs load`.
-- **Recalling facts**: When answering questions, check dregs first with `dregs query` before saying "I don't know" or searching elsewhere.
-- **Every session**: At the start of complex tasks, query dregs for relevant context.
+- **Recording facts**: When the user shares information, extracts data from documents, or asks you to remember something — store it as RDF triples via `remains load`.
+- **Recalling facts**: When answering questions, check remains first with `remains query` before saying "I don't know" or searching elsewhere.
+- **Every session**: At the start of complex tasks, query remains for relevant context.
 
 ## Discovering the Schema
 
@@ -23,7 +23,7 @@ dregs is an RDF triple store backed by a remote Turso database (`DREGS_DSN` is p
 
 ```bash
 # Get a human-readable summary of all entity types, relationships, and properties
-dregs prompt
+remains prompt
 ```
 
 Run this before writing any triples so you use the correct classes, properties, and prefixes.
@@ -34,21 +34,21 @@ Run this before writing any triples so you use the correct classes, properties, 
 
 ```bash
 # List all classes/types in use
-dregs query "SELECT DISTINCT ?type WHERE { ?s a ?type }"
+remains query "SELECT DISTINCT ?type WHERE { ?s a ?type }"
 
 # Search for a specific entity
-dregs query "SELECT ?s ?p ?o WHERE { ?s ?p ?o . FILTER(CONTAINS(LCASE(STR(?s)), 'search-term')) } LIMIT 20"
+remains query "SELECT ?s ?p ?o WHERE { ?s ?p ?o . FILTER(CONTAINS(LCASE(STR(?s)), 'search-term')) } LIMIT 20"
 
 # Get everything about a subject
-dregs query "SELECT ?p ?o WHERE { <http://example.com/nrc#SomeEntity> ?p ?o }"
+remains query "SELECT ?p ?o WHERE { <http://example.com/nrc#SomeEntity> ?p ?o }"
 
 # Full text search in literals
-dregs query "SELECT ?s ?p ?o WHERE { ?s ?p ?o . FILTER(CONTAINS(LCASE(STR(?o)), 'keyword')) } LIMIT 20"
+remains query "SELECT ?s ?p ?o WHERE { ?s ?p ?o . FILTER(CONTAINS(LCASE(STR(?o)), 'keyword')) } LIMIT 20"
 ```
 
 ### Record facts
 
-1. First, discover the schema: `dregs prompt`
+1. First, discover the schema: `remains prompt`
 2. Write valid Turtle (.ttl) using only classes and properties from the schema output
 3. Load with a descriptive graph name
 
@@ -63,17 +63,17 @@ ex:SomeEntity a ex:SomeClass ;
 EOF
 
 # Load into a named graph (validates against schema by default)
-dregs load /tmp/facts.ttl --graph descriptive-graph-name
+remains load /tmp/facts.ttl --graph descriptive-graph-name
 ```
 
 ### Inspect the store
 
 ```bash
-dregs info          # Stats: triple count, graphs
-dregs graphs        # List all named graphs
-dregs export --type schema   # Show the ontology as Turtle
-dregs export --type shacl    # Show validation shapes
-dregs export -g graph-name   # Export a specific graph as Turtle
+remains info          # Stats: triple count, graphs
+remains graphs        # List all named graphs
+remains export --type schema   # Show the ontology as Turtle
+remains export --type shacl    # Show validation shapes
+remains export -g graph-name   # Export a specific graph as Turtle
 ```
 
 ## Graph Visualization
@@ -81,10 +81,10 @@ dregs export -g graph-name   # Export a specific graph as Turtle
 ### Launch the visualizer
 
 ```bash
-dregs viz                       # Opens browser on :7171
-dregs viz --port 8080           # Custom port
-dregs viz -g my-graph           # Specific named graph only
-dregs viz --no-open             # Headless (for remote/proxy access)
+remains viz                       # Opens browser on :7171
+remains viz --port 8080           # Custom port
+remains viz -g my-graph           # Specific named graph only
+remains viz --no-open             # Headless (for remote/proxy access)
 ```
 
 The visualizer shows an interactive force-directed graph with:
@@ -99,29 +99,29 @@ The visualizer shows an interactive force-directed graph with:
 The agent can control the visualization in real-time. Annotations are sent via HTTP
 and rendered instantly in all connected browsers via Server-Sent Events.
 
-**Start the viz server first**, then use `dregs annotate`:
+**Start the viz server first**, then use `remains annotate`:
 
 ```bash
 # Show a centered message overlay (auto-dismisses)
-dregs annotate toast -t "Analysis of Q1 meetings"
+remains annotate toast -t "Analysis of Q1 meetings"
 
 # Label communities in the Topics sidebar
-dregs annotate label-community -c 0 -t "👥 Core Team"
-dregs annotate label-community -c 1 -t "📋 Project Alpha"
-dregs annotate label-community -c 2 -t "🔬 Research Papers"
+remains annotate label-community -c 0 -t "👥 Core Team"
+remains annotate label-community -c 1 -t "📋 Project Alpha"
+remains annotate label-community -c 2 -t "🔬 Research Papers"
 
 # Highlight specific nodes (by label or ID), dim everything else
-dregs annotate highlight-nodes -n "Alice" -n "Bob"
-dregs annotate highlight-nodes -n "Alice" --neighbors   # include neighbors
+remains annotate highlight-nodes -n "Alice" -n "Bob"
+remains annotate highlight-nodes -n "Alice" --neighbors   # include neighbors
 
 # Highlight an entire community
-dregs annotate highlight-community -c 2
+remains annotate highlight-community -c 2
 
 # Add a callout label above a node
-dregs annotate label-node -n "Alice" -t "Bridge node (BC=0.37)"
+remains annotate label-node -n "Alice" -t "Bridge node (BC=0.37)"
 
 # Clear all annotations and reset the view
-dregs annotate clear
+remains annotate clear
 ```
 
 **Annotation types reference:**
@@ -154,25 +154,25 @@ When the user asks you to explain or present a knowledge graph:
 
 ```bash
 # 1. Start the viz if not already running
-dregs viz --no-open --port 7171 &
+remains viz --no-open --port 7171 &
 
 # 2. Get the analytics to understand the graph
 curl -s http://localhost:7171/api/analytics | python3 -m json.tool
 
 # 3. Label the communities based on their content
-dregs annotate label-community -c 0 -t "👥 Description of topic 0"
-dregs annotate label-community -c 1 -t "📋 Description of topic 1"
+remains annotate label-community -c 0 -t "👥 Description of topic 0"
+remains annotate label-community -c 1 -t "📋 Description of topic 1"
 # ... etc
 
 # 4. Walk through insights
-dregs annotate toast -t "Key finding: ..."
-dregs annotate highlight-nodes -n "Important Node" --neighbors
+remains annotate toast -t "Key finding: ..."
+remains annotate highlight-nodes -n "Important Node" --neighbors
 sleep 3
-dregs annotate clear
+remains annotate clear
 
 # 5. Point out structural gaps
-dregs annotate highlight-community -c 0
-dregs annotate toast -t "This cluster has no connection to Topic 2"
+remains annotate highlight-community -c 0
+remains annotate toast -t "This cluster has no connection to Topic 2"
 ```
 
 ### API endpoints
@@ -189,9 +189,9 @@ dregs annotate toast -t "This cluster has no connection to Topic 2"
 
 1. **Always query before answering** if the question might be in the store.
 2. **Always record** when the user provides structured facts or asks you to remember.
-3. **Always discover the schema first** (`dregs prompt`) before writing triples — never hardcode class/property names from memory.
+3. **Always discover the schema first** (`remains prompt`) before writing triples — never hardcode class/property names from memory.
 4. **Use descriptive graph names** (e.g., `meeting-2026-03-04`, `user-preferences`).
 5. **Validation is mandatory** — every load is validated against the schema. There is no bypass flag.
 6. **If the ontology doesn't cover a domain**, tell the user and offer to extend it.
-7. **When visualizing**, always label communities via `dregs annotate label-community` after launching `dregs viz` — the auto-generated labels are just top node names and need human-readable descriptions.
-8. **Annotations persist in server memory** — they replay to new browser clients. Use `dregs annotate clear` to reset.
+7. **When visualizing**, always label communities via `remains annotate label-community` after launching `remains viz` — the auto-generated labels are just top node names and need human-readable descriptions.
+8. **Annotations persist in server memory** — they replay to new browser clients. Use `remains annotate clear` to reset.

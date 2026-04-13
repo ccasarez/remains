@@ -1,4 +1,4 @@
-"""Interactive knowledge graph visualizer for dregs."""
+"""Interactive knowledge graph visualizer for remains."""
 from __future__ import annotations
 
 import json
@@ -7,10 +7,10 @@ import threading
 import webbrowser
 from typing import Optional
 
-from dregs.store import DregsStore
+from remains.store import RemainsStore
 
 
-def _build_graph_data(store: DregsStore) -> dict:
+def _build_graph_data(store: RemainsStore) -> dict:
     """Extract nodes and edges from the store, then compute analytics."""
     prefixes = store.get_prefixes()
 
@@ -41,7 +41,7 @@ def _build_graph_data(store: DregsStore) -> dict:
         ?o a ?otype . FILTER(!STRSTARTS(STR(?otype), "http://www.w3.org/"))
     }
     """
-    from dregs.sparql import execute_sparql
+    from remains.sparql import execute_sparql
     result = execute_sparql(store, sparql, format="json")
 
     nodes_map = {}  # uri -> node data
@@ -134,7 +134,7 @@ def _build_graph_data(store: DregsStore) -> dict:
     nodes = list(nodes_map.values())
 
     # Compute analytics (community detection, centrality, gaps)
-    from dregs.analytics import compute_analytics
+    from remains.analytics import compute_analytics
     analytics = compute_analytics(nodes, edges)
 
     # After analytics, node colors come from community
@@ -154,7 +154,7 @@ _HTML = r"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>dregs — knowledge graph</title>
+<title>remains — knowledge graph</title>
 <style>
 :root {
     --bg: #0a0a0f;
@@ -388,7 +388,7 @@ svg { width: 100%; height: 100%; }
 <div id="controls">
     <div class="panel">
         <div class="mobile-handle" id="mobile-handle"></div>
-        <h1>dregs</h1>
+        <h1>remains</h1>
         <div class="subtitle" id="graph-info">knowledge graph</div>
     </div>
     <div class="panel">
@@ -1451,7 +1451,7 @@ simulate();
 
 
 def serve_viz(
-    store: DregsStore,
+    store: RemainsStore,
     port: int = 7171,
     open_browser: bool = True,
     base_url: Optional[str] = None,
@@ -1608,7 +1608,7 @@ def serve_viz(
     mod = data.get("analytics", {}).get("modularity", 0)
     bias = data.get("analytics", {}).get("biasLabel", "?")
     url = base_url or f"http://localhost:{port}"
-    print(f"dregs viz — {nc} nodes, {ec} edges, {cc} communities (modularity={mod}, {bias})")
+    print(f"remains viz — {nc} nodes, {ec} edges, {cc} communities (modularity={mod}, {bias})")
     print(f"Serving on {url}")
 
     if open_browser:

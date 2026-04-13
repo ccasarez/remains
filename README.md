@@ -1,329 +1,246 @@
-# dregs
+# remains
 
-Triples-based knowledge graph CLI for LLM agents.
-
-*The messy bits your agents remember.*
+What remains is what’s true.
 
 ```
-pip install dregs
+pip install remains
 ```
 
-Persistent knowledge graph storage backed by SQLite. Your agent extracts triples from unstructured text, dregs validates them against an OWL ontology + SHACL shapes, and stores what survives in a queryable graph. One file carries the schema, the constraints, and the data. No Java. No system deps. Pure Python.
+Most agent memory is a junk drawer. Vectors stuffed into a database, no schema, no validation, no way to know if what your agent “remembers” is consistent or even real. Ask it what it knows and you get vibes, not facts.
 
-## Quick Start
+Remains gives your agent structured memory with teeth. You define the shape of your domain — the types of things that exist, how they relate, what fields are required — and remains enforces it. Every fact your agent extracts gets validated against your schema before it’s stored. Bad extractions get rejected with specific errors. The agent reads the errors, fixes its output, and tries again.
+
+The schema is the backpressure. Without it, agents hallucinate structure. With it, they converge on yours.
+
+One SQLite file. No Java. No infrastructure. Pure Python.
+
+## You define the world. Remains holds the line.
+
+The core loop has two parts: a schema you write once, and a validation gate your agent hits every time it tries to remember something.
+
+### 1. Define your domain
+
+You describe your world in two files:
+
+**An ontology** defines what exists. People, decisions, documents, meetings — whatever your domain cares about. You specify the classes, their properties, and how they connect. This is written in OWL (via Turtle syntax), but you don’t need to be an ontologist. It reads like a declaration:
+
+```turtle
+# ontology.ttl — "here's what exists in my world"
+ex:Person a owl:Class ;
+    skos:example "ex:jane-doe a ex:Person ; ex:name 'Jane Doe'" .
+
+ex:Decision a owl:Class ;
+    skos:example "ex:dec-001 a ex:Decision ; ex:description 'Approved budget'" .
+
+ex:madeBy a owl:ObjectProperty ;
+    rdfs:domain ex:Decision ;
+    rdfs:range ex:Person .
+```
+
+**SHACL shapes** define the rules. Required fields, valid value types, cardinality constraints. This is where you say “every Decision must have a description and a person who made it”:
+
+```turtle
+# shapes.ttl — "here's what makes a fact valid"
+ex:DecisionShape a sh:NodeShape ;
+    sh:targetClass ex:Decision ;
+    sh:property [
+        sh:path ex:description ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string
+    ] ;
+    sh:property [
+        sh:path ex:madeBy ;
+        sh:minCount 1 ;
+        sh:class ex:Person
+    ] .
+```
+
+These two files are your agent’s contract with reality. Everything downstream flows from them.
+
+### 2. Remains provides the backpressure
 
 ```bash
-# Initialize with ontology + SHACL shapes
-dregs init my.db --schema ontology.ttl --shacl shapes.ttl
+# Initialize the store with your schema
+remains init project.db --schema ontology.ttl --shacl shapes.ttl
 
-# Load validated data (rejects invalid triples)
-dregs load my.db extracted.ttl --graph emails
+# Generate extraction context — feed this to your LLM
+remains prompt project.db > context.txt
 
-# Query with SPARQL
-dregs query my.db "PREFIX ex: <http://example.com/ontology#>
-  SELECT ?name WHERE { ?p a ex:Person ; ex:name ?name }"
+# Your agent extracts triples from unstructured text using context.txt
+# (this step is yours — remains handles validation, not extraction)
 
-# JSON output for agent consumption
-dregs query my.db "SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 5" --format json
-
-# Export schema back to Turtle
-dregs export my.db --type schema > ontology.ttl
+# Load with validation
+remains load project.db extracted.ttl --graph "meeting-notes"
 ```
+
+If the extraction is clean, it loads. If not, remains rejects it:
+
+```
+SHACL violation: ex:dec-042 missing required property ex:madeBy
+Schema violation: ex:Meetng is not a known class (did you mean ex:Meeting?)
+```
+
+Exit code 1. The agent reads the violations, fixes its extraction, retries. After a few rounds, the agent’s output conforms to your schema — not because you prompted harder, but because the system won’t accept anything else.
+
+## Why not just use a vector store?
+
+Vector search finds things that feel similar. Remains stores things that are true — validated against a schema you define, with relationships your agent can traverse. You get “Alice reported to Bob during Q3” instead of “here are 5 chunks that mention Alice.”
+
+**Why not a property graph?** Neo4j is powerful but heavy. Remains is a pip package that stores everything in a single file. Your agent doesn’t need a graph database server. It needs a world model it can carry.
+
+**Why not just dump JSON into SQLite?** Because without a schema, your agent will contradict itself within 20 extractions. Remains enforces structure. The schema is what keeps the world model from rotting.
+
+**Why OWL/SHACL instead of JSON Schema or SQL?** Because agent memory operates under open-world assumptions. A SQL schema or JSON Schema is closed-world — if a column or field isn’t defined, the data is rejected. That works when you control the inputs. But agents extract knowledge from messy, incomplete text. They’ll encounter things your schema didn’t anticipate. OWL assumes the world is bigger than what you’ve described so far. Your agent can store a fact about a Person even if it only extracted a name and not an email — the absence of data isn’t an error, it’s incomplete knowledge. SHACL then lets you draw the lines that matter: “a Decision without a madeBy is an error, but a Person without a phone number is fine.” You get the flexibility to grow the world model without rewriting migrations, and the strictness to reject garbage where it counts.
 
 ## Commands
 
 ### `init`
 
-Create a new store. Load ontology and/or SHACL shapes.
+Create a new store with your schema and constraints.
 
 ```
-dregs init DB --schema ONTOLOGY [--shacl SHAPES]
+remains init DB --schema ONTOLOGY [--shacl SHAPES]
 ```
 
 ### `load`
 
-Load Turtle data. Validates against stored schema/SHACL by default. Rejects invalid data with clear violation messages.
+Load extracted knowledge. Validates against your schema by default. Rejects bad data with clear violation messages.
 
 ```
-dregs load DB DATA [--graph NAME] [--no-validate]
+remains load DB DATA [--graph NAME] [--no-validate]
 ```
 
-Exit code 1 on validation failure. Agent reads violations, fixes extraction, retries.
+Exit code 1 on failure. Agent reads violations, fixes extraction, retries.
 
 ### `check`
 
-Validate without loading. Two modes:
+Validate without loading.
 
 ```
-dregs check my.db data.ttl              # against DB's schema/SHACL
-dregs check ontology.ttl data.ttl       # standalone, no DB
+remains check my.db data.ttl              # against DB's schema
+remains check ontology.ttl data.ttl       # standalone, no DB
 ```
-
-Runs OWL reasoning + SHACL validation + schema conformance checks.
 
 ### `query`
 
-Execute SPARQL against the store. Queries the union of all graphs by default.
+SPARQL against the store. Queries all graphs by default.
 
 ```
-dregs query DB "SPARQL" [--format table|json|turtle] [--graph NAME]
+remains query DB "SPARQL" [--format table|json|turtle] [--graph NAME]
 ```
 
 ### `export`
 
-Export graphs as Turtle.
+Export as Turtle.
 
 ```
-dregs export DB --type schema|shacl|data|all [--graph NAME]
+remains export DB --type schema|shacl|data|all [--graph NAME]
 ```
 
 ### `prompt`
 
-Generate LLM extraction prompt context from the ontology. Lists all classes, properties, and `skos:example` annotations.
+Generate LLM extraction context from the schema. Lists all classes, properties, and examples so your agent knows exactly what to extract and how to structure it.
 
 ```
-dregs prompt my.db          # from DB's schema graph
-dregs prompt ontology.ttl   # standalone from file
+remains prompt my.db
+remains prompt ontology.ttl
 ```
 
-### `info`
-
-Database statistics.
+### `info` / `graphs` / `drop`
 
 ```
-dregs info DB
-```
-
-### `graphs`
-
-List named graphs.
-
-```
-dregs graphs DB
-```
-
-### `drop`
-
-Delete a named graph and its triples.
-
-```
-dregs drop DB --graph NAME [-y]
-```
-
-## Agent Workflow
-
-```bash
-# 1. Setup (once)
-dregs init project.db --schema ontology.ttl --shacl shapes.ttl
-
-# 2. Generate extraction context
-dregs prompt project.db > context.txt
-
-# 3. LLM extracts triples from unstructured text using context.txt
-#    (this step is yours -- dregs handles storage, not extraction)
-
-# 4. Load with validation
-dregs load project.db extracted.ttl --graph "source-doc"
-# Exit 1? Read violations, re-extract, retry. Max 3 attempts.
-
-# 5. Query the knowledge graph
-dregs query project.db "PREFIX ex: <http://example.com/ontology#>
-  SELECT ?person ?decision WHERE {
-    ?d a ex:Decision ; ex:madeBy ?p ; ex:description ?decision .
-    ?p ex:name ?person
-  }"
-
-# 6. Export for external tools
-dregs export project.db --type schema > ontology.ttl
-dregs export project.db --type data > all_data.ttl
+remains info DB                  # statistics
+remains graphs DB                # list named graphs
+remains drop DB --graph NAME     # delete a graph
 ```
 
 ## Python API
 
 ```python
-from dregs import DregsStore
-from dregs.sparql import execute_sparql
-from dregs.prompt import prompt_from_store
+from remains import RemainsStore
+from remains.sparql import execute_sparql
+from remains.prompt import prompt_from_store
 
-# Initialize
-db = DregsStore("project.db")
+db = RemainsStore("project.db")
 db.init(schema_path=Path("ontology.ttl"), shacl_path=Path("shapes.ttl"))
 
-# Load with validation
 result = db.load(Path("data.ttl"), graph_name="emails")
 if not result["loaded"]:
     print(result["validation"].summary())
 
-# Query
 qr = execute_sparql(db, "SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10")
 print(qr.to_table())
 
-# Generate extraction prompt
 context = prompt_from_store(db)
-
 db.close()
 ```
 
 ## Connection Modes
-
-dregs supports three connection modes, configured via environment variables:
 
 ### Local Only (default)
 
 Pure local SQLite. No network required.
 
 ```bash
-export DREGS_DSN=./my.db
-dregs init --schema ontology.ttl
+export REMAINS_DSN=./my.db
+remains init --schema ontology.ttl
 ```
 
 ### Remote Only (Turso Cloud)
 
-Every read and write goes over the network to a Turso database.
+Every read and write goes over the network.
 
 ```bash
-export DREGS_DSN=libsql://your-db-org.turso.io
-export DREGS_AUTH_TOKEN=eyJ...
-dregs info
+export REMAINS_DSN=libsql://your-db-org.turso.io
+export REMAINS_AUTH_TOKEN=eyJ...
 ```
 
 ### Embedded Replica (recommended for production)
 
-A local SQLite file acts as a read cache that syncs with Turso Cloud. Reads hit the local file (fast, works offline), writes go through the cloud, and `sync()` pulls changes down on connect.
+Local SQLite read cache that syncs with Turso Cloud. Reads are local and fast, writes go through the cloud.
 
 ```bash
-export DREGS_DSN="${XDG_DATA_HOME:-$HOME/.local/share}/dregs/dregs.db"
-export DREGS_SYNC_URL=libsql://your-db-org.turso.io
-export DREGS_AUTH_TOKEN=eyJ...
-dregs info
+export REMAINS_DSN="${XDG_DATA_HOME:-$HOME/.local/share}/remains/remains.db"
+export REMAINS_SYNC_URL=libsql://your-db-org.turso.io
+export REMAINS_AUTH_TOKEN=eyJ...
 ```
 
 ```
 ┌─────────────────┐      sync()       ┌──────────────────┐
 │ Local SQLite     │ ◄──────────────► │ Turso Cloud DB    │
 │ (fast reads)     │                  │ (source of truth) │
-│ ~/.local/share/  │                  │                   │
-│   dregs/dregs.db │                  │                   │
 └─────────────────┘                  └──────────────────┘
 ```
 
-**How it works:**
-
-- `libsql.connect()` is called with both a local `database` path and a `sync_url`
-- On connect, `conn.sync()` pulls the latest state from the cloud into the local file
-- All subsequent reads hit the local SQLite — typically **5-10x faster** than remote
-- The local file is a full SQLite database you can inspect with standard tools
-
-**Environment variables:**
-
-| Variable | Required | Description |
-|---|---|---|
-| `DREGS_DSN` | Yes | Local file path (embedded replica) or `libsql://` URL (remote) |
-| `DREGS_SYNC_URL` | No | Turso cloud URL to sync from. Activates embedded replica mode |
-| `DREGS_AUTH_TOKEN` | For remote/sync | Turso auth token (rw or ro) |
-
-**XDG compliance:** The recommended location for the local replica is `$XDG_DATA_HOME/dregs/dregs.db` (defaults to `~/.local/share/dregs/dregs.db`). This follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/) — persistent user data goes in `XDG_DATA_HOME`.
-
-### Switching modes
-
-The mode is determined entirely by what environment variables are set:
-
-```bash
-# Local only — no DREGS_SYNC_URL, DSN is a file path
-DREGS_DSN=./local.db
-
-# Remote only — DSN is a libsql:// URL, no DREGS_SYNC_URL
-DREGS_DSN=libsql://your-db.turso.io
-
-# Embedded replica — DSN is a file path + DREGS_SYNC_URL is set
-DREGS_DSN=~/.local/share/dregs/dregs.db
-DREGS_SYNC_URL=libsql://your-db.turso.io
-```
-
-## Architecture
-
-- **SQLite** owns persistence. Triples table with subject/predicate/object/graph columns. Indexed for common SPARQL access patterns.
-- **rdflib** used at the boundary: parse Turtle in, serialize Turtle out, execute SPARQL by loading from SQLite into in-memory graphs.
-- **Named graphs** with types: `schema`, `shacl`, `data`, `inferred`. SPARQL queries hit the union of all graphs by default.
-- **Validation-on-load** extracts schema + SHACL from the DB, runs OWL-RL reasoning + SHACL validation + schema conformance checks. Only commits on PASS.
+|Variable            |Required       |Description                                     |
+|--------------------|---------------|------------------------------------------------|
+|`REMAINS_DSN`       |Yes            |Local file path or `libsql://` URL              |
+|`REMAINS_SYNC_URL`  |No             |Turso cloud URL. Activates embedded replica mode|
+|`REMAINS_AUTH_TOKEN`|For remote/sync|Turso auth token                                |
 
 ## Validation Pipeline
 
-Three layers, run on every `dregs load`:
+Three layers run on every `remains load`:
 
-1. **SHACL Validation** -- structural constraints (required fields, cardinality, datatypes)
-1. **OWL-RL Reasoning** -- infer missing triples, detect logical contradictions
-1. **Schema Conformance** -- unknown types, abstract class misuse, provenance checks
+1. **SHACL** — required fields, cardinality, datatypes
+1. **OWL-RL reasoning** — infer missing triples, detect contradictions
+1. **Schema conformance** — unknown types, misuse of abstract classes, provenance
 
-## Dependencies
-
-- `rdflib>=7.0.0` -- RDF parsing, SPARQL
-- `owlrl>=6.0.2` -- OWL 2 RL reasoning (pure Python)
-- `pyshacl>=0.26.0` -- SHACL validation
-- `click>=8.0.0` -- CLI
-- `libsql>=0.1.0` -- Turso/libSQL support
-
-No Java. No system packages. Works in any Python 3.10+ environment.
+If any layer fails, nothing gets committed. Your agent gets violation messages it can use to fix the extraction and retry. This is the backpressure — the schema doesn’t just document your domain, it defends it.
 
 ## Examples
 
-See `examples/` for complete working setups. Each has an OWL ontology, SHACL shapes, valid data, and intentionally broken data.
+See `examples/` for complete working setups with ontologies, SHACL shapes, valid data, and intentionally broken data covering FOAF, Schema.org, and DCAT vocabularies.
 
-### Default (custom ontology)
+## Dependencies
 
-- `examples/ontology.ttl` -- OWL ontology with abstract + leaf classes
-- `examples/shapes.ttl` -- SHACL shapes for data quality
-- `examples/data_good.ttl` -- valid data (passes validation, loads)
-- `examples/data_bad.ttl` -- broken data (fails with clear errors)
+- `rdflib` — RDF parsing, SPARQL
+- `owlrl` — OWL 2 RL reasoning (pure Python)
+- `pyshacl` — SHACL validation
+- `click` — CLI
+- `libsql` — Turso/libSQL support
 
-### FOAF (Friend-of-a-Friend)
-
-Application profile based on [FOAF 0.99](http://xmlns.com/foaf/0.1/) with Dublin Core terms. Extracts people, organizations, projects, and relationships from text.
-
-```bash
-dregs init foaf.db --schema examples/foaf/ontology.ttl --shacl examples/foaf/shapes.ttl
-dregs load foaf.db examples/foaf/data_good.ttl --graph test
-dregs check foaf.db examples/foaf/data_bad.ttl
-```
-
-### Schema.org (Events + Articles)
-
-Application profile based on [Schema.org](https://schema.org/). Extracts events, articles, organizations, and people from web content.
-
-```bash
-dregs init schema.db --schema examples/schema-org/ontology.ttl --shacl examples/schema-org/shapes.ttl
-dregs load schema.db examples/schema-org/data_good.ttl --graph test
-dregs check schema.db examples/schema-org/data_bad.ttl
-```
-
-### DCAT (Data Catalog Vocabulary)
-
-Application profile based on [DCAT 3](http://www.w3.org/ns/dcat#) and DCAT-AP. Extracts dataset metadata from data portals and API documentation.
-
-```bash
-dregs init dcat.db --schema examples/dcat/ontology.ttl --shacl examples/dcat/shapes.ttl
-dregs load dcat.db examples/dcat/data_good.ttl --graph test
-dregs check dcat.db examples/dcat/data_bad.ttl
-```
-
-## Testing
-
-Install with test dependencies and run:
-
-```bash
-pip install -e ".[test]"
-pytest
-```
-
-The core test suites (`test_examples.py`, `test_turso.py`) cover validation, SPARQL queries, store lifecycle, and local Turso-compatible storage. They require no external services.
-
-Remote Turso tests (`test_turso_remote.py`) require a running Turso database:
-
-```bash
-export DREGS_TEST_DSN="libsql://your-db.turso.io"
-export DREGS_TEST_AUTH_TOKEN="your-token"
-pytest tests/test_turso_remote.py
-```
+No Java. No system packages. Python 3.10+.
 
 ## License
 
