@@ -83,11 +83,17 @@ dregs-sh:DisplayNameShape a sh:NodeShape ;
     sh:message "Instance must have rdfs:label, skos:prefLabel, or schema:name" .
 
 # ---------------------------------------------------------------------------
-# SHACL-SPARQL schema checks
+# Schema checks
 # ---------------------------------------------------------------------------
-# These advanced constraints replace the previous hand-rolled schema checks
-# (UNKNOWN_TYPE / ABSTRACT_TYPE / NO_TYPE) and let pyshacl own the whole
-# validation pipeline. They require `advanced=True` when calling pyshacl.
+# ABSTRACT_TYPE is handled in SHACL Core by shapes that run_validation()
+# synthesises from the ontology at validation time (one NodeShape per
+# abstract class, using sh:targetClass + sh:or + sh:class). It is NOT in
+# this file because the system shapes cannot know the user's class
+# hierarchy at authoring time.
+#
+# UNKNOWN_TYPE and NO_TYPE remain as SHACL-SPARQL constraints below
+# because expressing them generically in SHACL Core would require
+# enumerating every class in the ontology.
 
 # UNKNOWN_TYPE: every URI used as an rdf:type object must be declared as
 # an owl:Class or rdfs:Class in the ontology (or the SHACL shapes graph).
@@ -106,29 +112,6 @@ dregs-sh:KnownTypeShape a sh:NodeShape ;
                 FILTER (!STRSTARTS(STR($this), "http://www.w3.org/"))
                 FILTER (!STRSTARTS(STR($this), "http://schema.org/"))
                 FILTER (!STRSTARTS(STR($this), "urn:dregs:"))
-            }
-        """ ;
-    ] .
-
-# ABSTRACT_TYPE: instances must be typed with at least one leaf class
-# (a class that has no declared subclass). Typing only with abstract parent
-# classes (e.g. ex:Agent when ex:Person/ex:Organization exist) is rejected.
-dregs-sh:LeafTypeShape a sh:NodeShape ;
-    sh:targetSubjectsOf rdf:type ;
-    sh:sparql [
-        a sh:SPARQLConstraint ;
-        sh:message "Instance {$this} is typed only with abstract classes (ABSTRACT_TYPE). Use a leaf class." ;
-        sh:prefixes dregs-sh:ontology ;
-        sh:select """
-            SELECT $this
-            WHERE {
-                $this a ?someType .
-                ?someType a owl:Class .
-                FILTER NOT EXISTS {
-                    $this a ?leaf .
-                    ?leaf a owl:Class .
-                    FILTER NOT EXISTS { ?child rdfs:subClassOf ?leaf }
-                }
             }
         """ ;
     ] .
