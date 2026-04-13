@@ -8,7 +8,7 @@ from pathlib import Path
 import click
 
 from remains.models import ValidationResult
-from remains.store import RemainsStore, validate_files
+from remains.store import RemainsStore
 
 
 _SQLITE_MAGIC = b"SQLite format 3\x00"
@@ -133,50 +133,37 @@ def load(data: Path, db: Path | None, as_json: bool):
 
 
 @cli.command()
-@click.argument("source", type=click.Path(exists=True, path_type=Path))
 @click.argument("data", type=click.Path(exists=True, path_type=Path))
-@click.option("--shacl", "-s", type=click.Path(exists=True, path_type=Path))
+@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
 @click.option("--regime", "-r", type=click.Choice(["none", "rdfs", "owlrl", "both"]), default="none")
 @click.option("--json", "as_json", is_flag=True)
-def check(source: Path, data: Path, shacl: Path | None, regime: str, as_json: bool):
-    """Validate RDF data against an ontology or remains database.
+def check(data: Path, db: Path | None, regime: str, as_json: bool):
+    """Validate RDF data against the store's ontology and SHACL shapes.
 
-    \b
-    SOURCE  remains database or OWL ontology (.ttl)
-    DATA    Turtle file to validate
+    Same validation pipeline as 'remains load', but does not commit
+    anything to the store. The ontology and shapes are always loaded
+    from the database (via --db or REMAINS_DSN).
     """
-    if _is_sqlite(source):
-        store = RemainsStore(source)
-        try:
-            conn = store._connect()
-            schema_graph = store._load_graph(conn, "urn:ontology")
+    from rdflib import Graph
+    from remains.store import run_validation
 
-            from rdflib import Graph
-            if shacl:
-                shacl_graph = Graph()
-                shacl_graph.parse(str(shacl), format="turtle")
-            else:
-                shacl_graph = store._load_graph(conn, "urn:shacl")
+    store = _open_store(db)
+    try:
+        conn = store._connect()
+        schema_graph = store._load_graph(conn, "urn:ontology")
+        shacl_graph = store._load_graph(conn, "urn:shacl")
 
-            data_graph = Graph()
-            data_graph.parse(str(data), format="turtle")
+        data_graph = Graph()
+        data_graph.parse(str(data), format="turtle")
 
-            from remains.store import run_validation
-            result = run_validation(
-                schema_graph=schema_graph,
-                data_graph=data_graph,
-                shacl_graph=shacl_graph if len(shacl_graph) > 0 else None,
-                reasoning_regime=regime,
-            )
-        finally:
-            store.close()
-    else:
-        result = validate_files(
-            ontology_path=source,
-            data_path=data,
-            shacl_path=shacl,
+        result = run_validation(
+            schema_graph=schema_graph,
+            data_graph=data_graph,
+            shacl_graph=shacl_graph if len(shacl_graph) > 0 else None,
             reasoning_regime=regime,
         )
+    finally:
+        store.close()
 
     if as_json:
         click.echo(json.dumps(result.to_dict(), indent=2))
