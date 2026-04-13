@@ -7,7 +7,6 @@ requires-python = ">=3.10"
 license = "MIT"
 dependencies = [
     "rdflib>=7.0.0",
-    "owlrl>=6.0.2",
     "pyshacl>=0.26.0",
     "click>=8.0.0",
     "libsql>=0.1.0",
