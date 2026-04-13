@@ -162,6 +162,112 @@ class TestLoad:
         assert graph_names <= {"", "urn:ontology", "urn:shacl"}
 
 
+class TestOntologyShapesAreNotDataTargets:
+    """Ontology-policing SHACL shapes must not fire against ontology nodes.
+
+    Regression test: gist's shapes use SPARQL-based targets that select all
+    ``owl:Class`` and ``owl:ObjectProperty`` nodes in the gist namespace and
+    require each to have a ``skos:definition`` and a conforming label. With
+    ``advanced=True``, pyshacl merges the ontology into the data graph for
+    target evaluation, which used to produce hundreds of spurious violations
+    against the gist ontology itself whenever a user loaded *any* data file.
+    ``dregs load`` should only police the user's data, not the ontology.
+    """
+
+    GIST_ROOT = EXAMPLES_ROOT / "gist"
+
+    @pytest.fixture
+    def store(self, tmp_path):
+        db = DregsStore(tmp_path / "test.db")
+        db.init(
+            ontology_path=self.GIST_ROOT / "ontology.ttl",
+            shacl_path=self.GIST_ROOT / "shapes.ttl",
+        )
+        yield db
+        db.close()
+
+    def test_clean_user_data_loads_with_gist_shapes(self, store, tmp_path):
+        """Minimal user data should load cleanly despite gist shapes being present."""
+        data = tmp_path / "user_data.ttl"
+        data.write_text(
+            """
+@prefix gist: <https://w3id.org/semanticarts/ns/ontology/gist/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix ex:   <http://example.com/data#> .
+
+ex:alice a gist:Person ;
+    skos:prefLabel "Alice" .
+"""
+        )
+        result = store.load(data)
+        assert result["loaded"] is True, (
+            f"clean user data rejected by ontology-policing shapes: "
+            f"{getattr(result.get('validation'), 'shacl_violations', None)}"
+        )
+
+    def test_run_validation_filters_ontology_only_violations(self):
+        """run_validation drops violations whose focus node is only in the ontology."""
+        from rdflib import Graph
+
+        from dregs.store import run_validation
+
+        ontology = Graph()
+        ontology.parse(
+            data="""
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix ex:  <http://example.com/ontology#> .
+
+ex:Person a owl:Class .
+ex:UnusedClass a owl:Class .
+""",
+            format="turtle",
+        )
+
+        shapes = Graph()
+        shapes.parse(
+            data="""
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix ex:   <http://example.com/shapes#> .
+
+ex:ClassDefinitionShape a sh:NodeShape ;
+    sh:targetClass owl:Class ;
+    sh:property [
+        sh:path rdfs:comment ;
+        sh:minCount 1 ;
+        sh:message "Classes must have an rdfs:comment" ;
+    ] .
+""",
+            format="turtle",
+        )
+
+        data = Graph()
+        data.parse(
+            data="""
+@prefix ex:   <http://example.com/data#> .
+@prefix cls:  <http://example.com/ontology#> .
+
+ex:alice a cls:Person .
+""",
+            format="turtle",
+        )
+
+        result = run_validation(
+            schema_graph=ontology,
+            data_graph=data,
+            shacl_graph=shapes,
+        )
+
+        # Without the fix, ex:Person and ex:UnusedClass (from the ontology)
+        # would trigger violations because pyshacl merges ont_graph into the
+        # data graph for target evaluation. With the fix, those are filtered
+        # out because their focus nodes only live in the ontology.
+        assert result.conforms, (
+            f"ontology-only violations leaked through: {result.shacl_violations}"
+        )
+
+
 class TestPrompt:
     """dregs prompt generates from urn:ontology graph."""
 
