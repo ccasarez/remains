@@ -2,24 +2,21 @@
 
 ## Design Principles
 
-1. **One SQLite DB = one knowledge domain** — no multi-graph complexity
+1. **One SQLite DB** — no multi-graph complexity
 2. **3 fixed graphs** — data, ontology, shacl. Nothing else.
 3. **System/user split** — remains ships system ontology + shapes, user provides domain-specific ones
 4. **Standard vocabularies** — reuse rdfs:label, schema:name, skos:prefLabel. Don't invent.
-5. **Topics are first-class data** — reified as remains:Topic instances in default data graph, queryable, vizualizable
-6. **Domains scope LLM extraction** — reified as remains:Domain instances in ontology graph, grouping classes for `remains prompt --domain X`
-7. **Multiple knowledge bases = multiple databases** — use REMAINS_DSN to switch
 
 ## DB Structure
 
 ```
 One SQLite database:
-  DEFAULT graph  = user data + topics (remains:Topic instances live here)
-  urn:ontology   = system ontology + user ontology + domains (merged)
+  DEFAULT graph  = user data
+  urn:ontology   = system ontology + user ontology (merged)
   urn:shacl      = system shapes + user shapes (merged)
 ```
 
-No other graphs. No named data graphs. No profiles. Topics are just data.
+No other graphs. No named data graphs. No profiles.
 
 ```sql
 CREATE TABLE triples (
@@ -68,51 +65,9 @@ CREATE TABLE metadata (
 @prefix remains: <urn:remains:system#> .
 @prefix owl:   <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix sh:    <http://www.w3.org/ns/shacl#> .
-@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
 
 <urn:remains:system> a owl:Ontology ;
-    rdfs:label "remains System Ontology" ;
-    owl:imports <http://www.w3.org/2000/01/rdf-schema> ,
-                <http://www.w3.org/2004/02/skos/core> .
-
-# --- Topic ---
-
-remains:Topic a owl:Class ;
-    rdfs:label "Topic" ;
-    rdfs:comment "Thematic grouping of entities in the knowledge graph" .
-
-remains:member a owl:ObjectProperty ;
-    rdfs:domain remains:Topic ;
-    rdfs:label "member" ;
-    rdfs:comment "Entity belonging to this topic" .
-
-remains:createdBy a owl:DatatypeProperty ;
-    rdfs:domain remains:Topic ;
-    rdfs:range xsd:string ;
-    rdfs:comment "Algorithm or user that created this topic" .
-
-remains:modularity a owl:DatatypeProperty ;
-    rdfs:domain remains:Topic ;
-    rdfs:range xsd:decimal ;
-    rdfs:comment "Modularity score from community detection" .
-
-remains:color a owl:DatatypeProperty ;
-    rdfs:domain remains:Topic ;
-    rdfs:range xsd:string ;
-    rdfs:comment "Display color (hex)" .
-
-# --- Domain (ontology-level grouping for scoped LLM prompts) ---
-
-remains:Domain a owl:Class ;
-    rdfs:label "Domain" ;
-    rdfs:comment "Named subset of ontology classes for scoped LLM extraction prompts" .
-
-remains:includesClass a owl:ObjectProperty ;
-    rdfs:domain remains:Domain ;
-    rdfs:range owl:Class ;
-    rdfs:label "includes class" ;
-    rdfs:comment "An ontology class included in this domain" .
+    rdfs:label "remains System Ontology" .
 
 # --- Display Name Constraint ---
 
@@ -131,49 +86,6 @@ remains:RequiresDisplayName a rdfs:Class ;
 @prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix skos:     <http://www.w3.org/2004/02/skos/core#> .
 @prefix schema:   <http://schema.org/> .
-@prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
-
-# Topic must have label and at least one member
-remains-sh:TopicShape a sh:NodeShape ;
-    sh:targetClass remains:Topic ;
-    sh:property [
-        sh:path rdfs:label ;
-        sh:minCount 1 ;
-        sh:datatype xsd:string ;
-        sh:message "Topic must have rdfs:label"
-    ] ;
-    sh:property [
-        sh:path remains:member ;
-        sh:minCount 1 ;
-        sh:nodeKind sh:IRI ;
-        sh:message "Topic must have at least one member"
-    ] ;
-    sh:property [
-        sh:path remains:createdBy ;
-        sh:maxCount 1 ;
-        sh:datatype xsd:string
-    ] ;
-    sh:property [
-        sh:path remains:modularity ;
-        sh:maxCount 1 ;
-        sh:datatype xsd:decimal
-    ] .
-
-# Domain must have label and at least one class
-remains-sh:DomainShape a sh:NodeShape ;
-    sh:targetClass remains:Domain ;
-    sh:property [
-        sh:path rdfs:label ;
-        sh:minCount 1 ;
-        sh:datatype xsd:string ;
-        sh:message "Domain must have rdfs:label"
-    ] ;
-    sh:property [
-        sh:path remains:includesClass ;
-        sh:minCount 1 ;
-        sh:nodeKind sh:IRI ;
-        sh:message "Domain must include at least one class"
-    ] .
 
 # All leaf classes marked RequiresDisplayName must have a display property
 remains-sh:DisplayNameShape a sh:NodeShape ;
@@ -213,17 +125,6 @@ remains-sh:DisplayNameShape a sh:NodeShape ;
 :date a owl:DatatypeProperty ;
     rdfs:domain :Meeting ;
     rdfs:range xsd:date .
-
-# --- Domains (scoped class subsets for LLM extraction) ---
-# These live in urn:ontology alongside class definitions
-
-<urn:remains:domain#meetings> a remains:Domain ;
-    rdfs:label "Meetings" ;
-    remains:includesClass :Meeting, :Person, :Task .
-
-<urn:remains:domain#people> a remains:Domain ;
-    rdfs:label "People" ;
-    remains:includesClass :Person .
 ```
 
 ## User Shapes (example)
@@ -288,61 +189,12 @@ def get_display_name(node_uri: str, store: TripleStore) -> str:
 
 Used by viz for node labels, CLI for output formatting.
 
-## Topics
-
-### Storage
-Topics are data. They live in the default data graph alongside everything else — just instances of `remains:Topic` from the system ontology. Validated by system shapes like any other class.
-
-```turtle
-@prefix remains: <urn:remains:system#> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix : <urn:domain:meetings#> .
-
-# These triples live in the DEFAULT data graph
-
-<urn:remains:topic#nlp-research> a remains:Topic ;
-    rdfs:label "NLP Research" ;
-    rdfs:comment "Natural language processing papers and projects" ;
-    remains:member :paper-123, :paper-456, :project-bert ;
-    remains:createdBy "manual" ;
-    remains:color "#d64141" .
-
-<urn:remains:topic#0> a remains:Topic ;
-    rdfs:label "Database Systems" ;
-    remains:member :neo4j, :postgres, :ep-12, :ep-16 ;
-    remains:createdBy "louvain" ;
-    remains:modularity 0.72 ;
-    remains:color "#62e889" .
-```
-
-### CLI Commands
-
-```bash
-# Auto-detect topics from graph structure
-remains detect-topics
-# Runs Louvain community detection, stores topics in default graph
-
-# Name auto-detected topics
-remains name-topic 0 "Database Systems"
-
-# Manual topic creation
-remains create-topic nlp-research --name "NLP Research"
-remains add-to-topic nlp-research --member paper-123 --member paper-456
-
-# List topics
-remains topics
-
-# Viz uses topics for coloring and sidebar
-remains viz
-remains viz --topic nlp-research   # filter to topic members
-```
-
 ## CLI Commands (Complete)
 
 ### Initialize
 ```bash
-# Create new domain database
-remains init meetings.db \
+# Create the database
+remains init \
   --ontology meetings.ttl \
   --shacl meetings-shapes.ttl
 
@@ -375,11 +227,6 @@ remains query "SELECT * WHERE { ?s a :Meeting }"
 ```bash
 # Full prompt (all classes in ontology)
 remains prompt
-
-# Scoped prompt (only classes in domain + their properties)
-remains prompt --domain meetings
-# Only includes: Meeting, Person, Task
-# Plus properties where domain/range is one of those classes
 ```
 
 ### Validate
@@ -419,58 +266,13 @@ remains info
 #   Data triples: 2,455
 #   Ontology triples: 122 (system: 45, user: 77)
 #   SHACL triples: 89 (system: 31, user: 58)
-#   Domains: 2 (meetings, people)
-#   Topics: 6
 #   Created: 2026-04-12
-```
-
-### Domains
-```bash
-remains domains                      # List all domains
-# Output:
-#   meetings   3 classes   "Meetings"
-#   people     1 classes   "People"
-
-remains create-domain projects \     # Create domain
-  --class Project --class Task --class Milestone
-
-remains add-to-domain projects \     # Add class to existing domain
-  --class Person
-```
-
-### Topics
-```bash
-remains detect-topics                # Auto-detect via community detection
-remains create-topic NAME            # Manual topic
-remains add-to-topic NAME --member X # Add members
-remains name-topic ID "Label"       # Name auto-detected topic
-remains topics                       # List all topics
 ```
 
 ### Viz
 ```bash
 remains viz                          # Full graph
-remains viz --topic NAME             # Filter to topic
 ```
-
-## Multiple Domains
-
-```bash
-# Different databases for different domains
-export REMAINS_DSN=meetings.db
-remains init --ontology meetings.ttl --shacl meetings-shapes.ttl
-remains load meeting-data.ttl
-
-export REMAINS_DSN=finance.db
-remains init --ontology finance.ttl --shacl finance-shapes.ttl
-remains load transactions.ttl
-
-export REMAINS_DSN=people.db
-remains init --ontology people.ttl --shacl people-shapes.ttl
-remains load employees.ttl
-```
-
-Cross-domain linking = URI references. Applications join across DBs as needed. remains doesn't.
 
 ## Namespace Protection
 
@@ -478,7 +280,7 @@ System namespaces (`remains:`, `remains-sh:`) are immutable by user commands:
 
 ```bash
 remains update-ontology evil.ttl
-# evil.ttl contains: remains:Topic rdfs:label "Hacked" .
+# evil.ttl contains: remains:RequiresDisplayName rdfs:label "Hacked" .
 # ERROR: Cannot modify system namespace (urn:remains:system#)
 
 remains update-shacl evil-shapes.ttl
@@ -491,14 +293,10 @@ remains update-shacl evil-shapes.ttl
 remains check
 ```
 
-Runs two passes:
-1. **System shapes** (remains-sh:) against default data graph — validates topics, display names
-2. **User shapes** against default data graph — validates domain data
+Runs system + user shapes against the default data graph:
 
-Reports separately:
 ```
 System validation:
-  ✓ remains-sh:TopicShape — 6 topics validated
   ✓ remains-sh:DisplayNameShape — 245 instances validated
 
 User validation:
@@ -506,23 +304,6 @@ User validation:
   ✗ :MeetingShape — 1 violation
     Focus: :meeting-orphan
     Message: Meeting must have rdfs:label
-```
-
-## Migration from Current remains
-
-Current remains has named data graphs in single DB. Migration:
-
-```bash
-# Export each domain's data
-REMAINS_DSN=old-remains.db remains export -g nrc-meeting-* > nrc-data.ttl
-REMAINS_DSN=old-remains.db remains export -g goingmeta > gm-data.ttl
-
-# Create new domain DBs
-REMAINS_DSN=nrc.db remains init --ontology nrc.ttl --shacl nrc-shapes.ttl
-REMAINS_DSN=nrc.db remains load nrc-data.ttl
-
-REMAINS_DSN=goingmeta.db remains init --ontology gm.ttl --shacl gm-shapes.ttl
-REMAINS_DSN=goingmeta.db remains load gm-data.ttl
 ```
 
 ## Implementation Phases
@@ -538,31 +319,12 @@ REMAINS_DSN=goingmeta.db remains load gm-data.ttl
 - [ ] Update `remains export` with --ontology/--shacl/--all flags
 - [ ] `remains info` with system/user triple counts
 
-### Phase 2: Domains
-- [ ] `remains create-domain` / `remains add-to-domain` commands
-- [ ] `remains domains` list command
-- [ ] Domains stored as remains:Domain instances in urn:ontology graph
-- [ ] Update `remains prompt --domain X` to filter classes/properties to domain members
-- [ ] System shape validation for domains (remains-sh:DomainShape)
-
-### Phase 3: Topics
-- [ ] `remains detect-topics` using Louvain from viz analytics
-- [ ] `remains create-topic` / `remains add-to-topic` / `remains name-topic`
-- [ ] `remains topics` list command
-- [ ] Topics stored as remains:Topic instances in default data graph
-
-### Phase 4: Display names
+### Phase 2: Display names
 - [ ] Implement `get_display_name()` fallback chain
 - [ ] Update viz node labels to use display names
 - [ ] Update CLI output formatting
 
-### Phase 5: Viz integration
-- [ ] Load topics from default graph on viz start
-- [ ] Color nodes by topic membership
-- [ ] `--topic` filter flag
-- [ ] Topic sidebar populated from stored topics
-
-### Phase 6: Schema updates
+### Phase 3: Schema updates
 - [ ] `remains update-ontology` (preserves system, replaces user)
 - [ ] `remains update-shacl` (preserves system, replaces user)
 - [ ] `--dry-run` flag for pre-validation

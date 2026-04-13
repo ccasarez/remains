@@ -112,21 +112,7 @@ remains viz          # interactive or static knowledge-graph visualizer
 ```
 
 The store has three fixed graphs — data (default), `urn:ontology`, and
-`urn:shacl` — and a pair of grouping primitives layered on top:
-
-- **Domains** scope the ontology: `remains create-domain`, `remains domains`,
-  and `remains prompt --domain <slug>` emit extraction context for a subset
-  of classes.
-- **Topics** scope the data: `remains create-topic`, `remains topics` group
-  related entities for recall and visualization.
-
-For multi-domain setups, use one database per domain and point `REMAINS_DSN`
-at whichever one you need:
-
-```
-REMAINS_DSN=meetings.db remains init --ontology meetings.ttl --shacl meetings-shapes.ttl
-REMAINS_DSN=finance.db  remains init --ontology finance.ttl  --shacl finance-shapes.ttl
-```
+`urn:shacl`.
 
 On a failed load, `remains load` exits with code 1 and prints SHACL
 violations the agent can read and retry against.

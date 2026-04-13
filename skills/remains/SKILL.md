@@ -32,17 +32,7 @@ patterns that `--help` cannot convey.
 remains has three fixed graphs: the default data graph, `urn:ontology`, and
 `urn:shacl`. You do not create named graphs per load — every `remains load`
 inserts into the default data graph, and validation runs against the
-ontology + shapes automatically. Grouping is layered on top via two
-primitives:
-
-- **Domains** group ontology classes for scoped extraction prompts. Create
-  with `remains create-domain`, list with `remains domains`, then narrow a
-  prompt with `remains prompt --domain <slug>`.
-- **Topics** group data entities. Create with `remains create-topic`, list
-  with `remains topics`.
-
-Use one database per domain when you need hard isolation: set `REMAINS_DSN`
-to a different path and `remains init` a fresh store.
+ontology + shapes automatically.
 
 ## Discovering the Schema
 
@@ -51,7 +41,6 @@ dynamically before writing any triples:
 
 ```bash
 remains prompt                     # whole ontology
-remains prompt --domain people     # scoped to a domain
 ```
 
 This emits a human-readable summary of entity types, relationships, and
@@ -100,20 +89,10 @@ remains load /tmp/facts.ttl
 If validation fails, `remains load` exits non-zero and prints SHACL
 violations. Read them, fix the Turtle, retry.
 
-To group these new entities with other related ones for later recall or
-visualization, create a topic:
-
-```bash
-remains create-topic q1-facts --name "Q1 Facts" \
-    --member http://example.com/ns#SomeEntity
-```
-
 ## Inspecting the store
 
 ```bash
-remains info                       # triple counts, domains, topics
-remains domains                    # list domains
-remains topics                     # list topics
+remains info                       # triple counts
 remains export --what data         # dump user data as Turtle
 remains export --what ontology     # dump user ontology (no system triples)
 remains export --what shacl        # dump user shapes (no system triples)
@@ -137,13 +116,13 @@ Scope the view with `--query "CONSTRUCT { ... }"` or
 `--focus <uri> [--hops N]` (mutually exclusive). See `remains viz --help`.
 
 The visualizer shows an interactive force-directed graph with:
-- **Community detection** (Louvain) — nodes colored by topic cluster
+- **Community detection** (Louvain) — nodes colored by community cluster
 - **Betweenness centrality** — node size shows bridge importance
-- **Structural gap analysis** — identifies disconnected topic areas
+- **Structural gap analysis** — identifies disconnected areas
 - **Analytics panel** (toggle with ◈ button) — modularity, bias score,
   influential nodes, gaps
-- **Topics sidebar** — click a topic to isolate it, click again to restore
-  all
+- **Communities sidebar** — click a community to isolate it, click again to
+  restore all
 
 ### Annotate the graph (agent remote control)
 
@@ -157,7 +136,7 @@ Events.
 # Show a centered message overlay (auto-dismisses)
 remains annotate toast -t "Analysis of Q1 meetings"
 
-# Label communities in the Topics sidebar
+# Label communities in the Communities sidebar
 remains annotate label-community -c 0 -t "👥 Core Team"
 remains annotate label-community -c 1 -t "📋 Project Alpha"
 
@@ -180,7 +159,7 @@ remains annotate clear
 | Type | Required flags | What it does |
 |---|---|---|
 | `toast` | `-t TEXT` | Centered overlay message, auto-dismisses |
-| `label-community` | `-c ID -t TEXT` | Updates the community name in the Topics sidebar |
+| `label-community` | `-c ID -t TEXT` | Updates the community name in the Communities sidebar |
 | `label-node` | `-n NODE -t TEXT` | Callout text above a specific node |
 | `highlight-nodes` | `-n NODE` (repeatable) | Highlight named nodes, dim others |
 | `highlight-community` | `-c ID` | Highlight a community, dim others |
@@ -213,8 +192,8 @@ remains viz --no-open --port 7171 &
 curl -s http://localhost:7171/api/analytics | python3 -m json.tool
 
 # 3. Label the communities based on their content
-remains annotate label-community -c 0 -t "👥 Description of topic 0"
-remains annotate label-community -c 1 -t "📋 Description of topic 1"
+remains annotate label-community -c 0 -t "👥 Description of community 0"
+remains annotate label-community -c 1 -t "📋 Description of community 1"
 # ... etc
 
 # 4. Walk through insights
@@ -225,7 +204,7 @@ remains annotate clear
 
 # 5. Point out structural gaps
 remains annotate highlight-community -c 0
-remains annotate toast -t "This cluster has no connection to Topic 2"
+remains annotate toast -t "This cluster has no connection to Community 2"
 ```
 
 ### API endpoints
@@ -245,17 +224,15 @@ remains annotate toast -t "This cluster has no connection to Topic 2"
    remember.
 3. **Always discover the schema first** (`remains prompt`) before writing
    triples — never hardcode class or property names from memory.
-4. **Group related entities with topics** (`remains create-topic`) so they
-   are easy to recall and visualize later.
-5. **Validation is mandatory** — every load is validated against the
+4. **Validation is mandatory** — every load is validated against the
    ontology and SHACL shapes. There is no bypass flag.
-6. **If the ontology doesn't cover a domain**, tell the user and offer to
+5. **If the ontology doesn't cover a domain**, tell the user and offer to
    extend it with `remains update-ontology`.
-7. **When visualizing**, always label communities via
+6. **When visualizing**, always label communities via
    `remains annotate label-community` after launching `remains viz` — the
    auto-generated labels are just top node names and need human-readable
    descriptions.
-8. **Annotations persist in server memory** — they replay to new browser
+7. **Annotations persist in server memory** — they replay to new browser
    clients. Use `remains annotate clear` to reset.
-9. **When a flag or argument isn't documented here, check
+8. **When a flag or argument isn't documented here, check
    `remains <command> --help`.** The CLI is the authoritative reference.

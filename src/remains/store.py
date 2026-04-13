@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from rdflib import RDF, RDFS, Graph, Literal, Namespace, URIRef, BNode
+from rdflib import RDF, Graph, Literal, Namespace, URIRef, BNode
 from rdflib.term import Node
 
 from remains.models import Triple, ValidationResult
@@ -124,7 +124,7 @@ class RemainsStore:
     """SQLite-backed RDF triple store with 3 fixed graphs.
 
     Graphs:
-        '' (default)   — user data + topics
+        '' (default)   — user data
         'urn:ontology' — system ontology + user ontology
         'urn:shacl'    — system shapes + user shapes
     """
@@ -439,22 +439,10 @@ class RemainsStore:
         version = conn.execute("SELECT value FROM metadata WHERE key = 'version'").fetchone()
         created = conn.execute("SELECT value FROM metadata WHERE key = 'created_at'").fetchone()
 
-        topic_count = conn.execute(
-            "SELECT COUNT(DISTINCT subject) FROM triples WHERE graph = '' AND predicate = ? AND object = ?",
-            (str(RDF.type), "urn:remains:system#Topic"),
-        ).fetchone()[0]
-
-        domain_count = conn.execute(
-            "SELECT COUNT(DISTINCT subject) FROM triples WHERE graph = 'urn:ontology' AND predicate = ? AND object = ?",
-            (str(RDF.type), "urn:remains:system#Domain"),
-        ).fetchone()[0]
-
         return {
             "data_triples": data,
             "ontology_triples": ont,
             "shacl_triples": shacl,
-            "topics": topic_count,
-            "domains": domain_count,
             "version": version[0] if version else "unknown",
             "created_at": created[0] if created else "unknown",
         }
@@ -464,124 +452,6 @@ class RemainsStore:
         conn = self._connect()
         rows = conn.execute("SELECT prefix, namespace FROM prefixes").fetchall()
         return {r[0]: r[1] for r in rows}
-
-    # -----------------------------------------------------------------
-    # Domains (urn:ontology graph)
-    # -----------------------------------------------------------------
-
-    def create_domain(self, slug: str, label: str, class_uris: list[str]):
-        """Create a domain in urn:ontology graph."""
-        conn = self._connect()
-        domain_uri = f"urn:remains:domain#{slug}"
-        rows = [
-            (domain_uri, str(RDF.type), "urn:remains:system#Domain", "uri", "", "", "urn:ontology"),
-            (domain_uri, str(RDFS.label), label, "typed_literal",
-             str(URIRef("http://www.w3.org/2001/XMLSchema#string")), "", "urn:ontology"),
-        ]
-        for cls_uri in class_uris:
-            rows.append(
-                (domain_uri, "urn:remains:system#includesClass", cls_uri, "uri", "", "", "urn:ontology"),
-            )
-        conn.executemany(
-            """INSERT OR IGNORE INTO triples
-               (subject, predicate, object, object_type, datatype, lang, graph)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            rows,
-        )
-        conn.commit()
-
-    def add_to_domain(self, slug: str, class_uris: list[str]):
-        """Add classes to an existing domain."""
-        conn = self._connect()
-        domain_uri = f"urn:remains:domain#{slug}"
-        rows = [
-            (domain_uri, "urn:remains:system#includesClass", cls_uri, "uri", "", "", "urn:ontology")
-            for cls_uri in class_uris
-        ]
-        conn.executemany(
-            """INSERT OR IGNORE INTO triples
-               (subject, predicate, object, object_type, datatype, lang, graph)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            rows,
-        )
-        conn.commit()
-
-    def list_domains(self) -> list[dict]:
-        """List all domains."""
-        conn = self._connect()
-        domain_uris = conn.execute(
-            "SELECT DISTINCT subject FROM triples WHERE graph = 'urn:ontology' AND predicate = ? AND object = ?",
-            (str(RDF.type), "urn:remains:system#Domain"),
-        ).fetchall()
-
-        domains = []
-        for (uri,) in domain_uris:
-            label_row = conn.execute(
-                "SELECT object FROM triples WHERE graph = 'urn:ontology' AND subject = ? AND predicate = ?",
-                (uri, str(RDFS.label)),
-            ).fetchone()
-            classes = conn.execute(
-                "SELECT object FROM triples WHERE graph = 'urn:ontology' AND subject = ? AND predicate = ?",
-                (uri, "urn:remains:system#includesClass"),
-            ).fetchall()
-            domains.append({
-                "uri": uri,
-                "slug": uri.split("#")[-1],
-                "name": label_row[0] if label_row else uri,
-                "classes": [r[0] for r in classes],
-            })
-        return domains
-
-    # -----------------------------------------------------------------
-    # Topics (default data graph)
-    # -----------------------------------------------------------------
-
-    def create_topic(self, slug: str, label: str, member_uris: list[str]):
-        """Create a topic in default data graph."""
-        conn = self._connect()
-        topic_uri = f"urn:remains:topic#{slug}"
-        rows = [
-            (topic_uri, str(RDF.type), "urn:remains:system#Topic", "uri", "", "", ""),
-            (topic_uri, str(RDFS.label), label, "typed_literal",
-             str(URIRef("http://www.w3.org/2001/XMLSchema#string")), "", ""),
-        ]
-        for member_uri in member_uris:
-            rows.append(
-                (topic_uri, "urn:remains:system#member", member_uri, "uri", "", "", ""),
-            )
-        conn.executemany(
-            """INSERT OR IGNORE INTO triples
-               (subject, predicate, object, object_type, datatype, lang, graph)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            rows,
-        )
-        conn.commit()
-
-    def list_topics(self) -> list[dict]:
-        """List all topics."""
-        conn = self._connect()
-        topic_uris = conn.execute(
-            "SELECT DISTINCT subject FROM triples WHERE graph = '' AND predicate = ? AND object = ?",
-            (str(RDF.type), "urn:remains:system#Topic"),
-        ).fetchall()
-
-        topics = []
-        for (uri,) in topic_uris:
-            label_row = conn.execute(
-                "SELECT object FROM triples WHERE graph = '' AND subject = ? AND predicate = ?",
-                (uri, str(RDFS.label)),
-            ).fetchone()
-            members = conn.execute(
-                "SELECT object FROM triples WHERE graph = '' AND subject = ? AND predicate = ?",
-                (uri, "urn:remains:system#member"),
-            ).fetchall()
-            topics.append({
-                "uri": uri,
-                "slug": uri.split("#")[-1],
-                "name": label_row[0] if label_row else uri,
-                "members": [r[0] for r in members],
-            })
-        return topics
 
 
 # === Validation ===

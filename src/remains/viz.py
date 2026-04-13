@@ -574,7 +574,7 @@ svg { width: 100%; height: 100%; }
     </div>
     <div class="panel">
         <input type="text" id="search" placeholder="Search nodes… ( / )" autocomplete="off">
-        <h2>Topics</h2>
+        <h2>Communities</h2>
         <div class="legend" id="legend"></div>
         <div class="btn-row">
             <button class="btn" data-action="toggle-analytics" title="Analytics panel">◈ Analytics</button>
@@ -1009,7 +1009,7 @@ function showNodeInfo(node) {
     let html = `<h3>${node.label}</h3>`;
     html += `<div class="node-stats">`;
     if (node.type) html += `<span class="type-badge" style="background:${node.color}33;color:${node.color}">${node.type}</span> `;
-    if (comm) html += `<span class="type-badge" style="background:${comm.color}33;color:${comm.color}">Topic ${node.community}</span>`;
+    if (comm) html += `<span class="type-badge" style="background:${comm.color}33;color:${comm.color}">Community ${node.community}</span>`;
     html += `<br>BC: ${node.bc?.toFixed(3) || 0} · Degree: ${node.degree || 0}`;
     html += `</div>`;
 
@@ -1147,18 +1147,18 @@ communities.forEach(c => {
     item.dataset.community = c.id;
     const topLabels = (c.topNodes || []).slice(0, 3).join(', ');
     item.innerHTML = `<span class="legend-dot" style="background:${c.color}"></span>
-        <span class="legend-label">${topLabels || 'Topic ' + c.id}</span>
+        <span class="legend-label">${topLabels || 'Community ' + c.id}</span>
         <span class="legend-meta">${c.nodeCount}</span>`;
     item.addEventListener('click', () => {
         const allActive = activeCommunities.size === communities.length;
         const onlyThis = activeCommunities.size === 1 && activeCommunities.has(c.id);
 
         if (onlyThis || (!allActive && activeCommunities.has(c.id))) {
-            // Clicking the sole selected topic (or re-clicking selected) → restore all
+            // Clicking the sole selected community (or re-clicking selected) → restore all
             activeCommunities.clear();
             communities.forEach(cc => activeCommunities.add(cc.id));
         } else {
-            // Select only this topic
+            // Select only this community
             activeCommunities.clear();
             activeCommunities.add(c.id);
         }
@@ -1470,7 +1470,7 @@ function applyAnnotation(ann) {
     const type = ann.type;
 
     if (type === 'label-community') {
-        // Update the community label in the Topics legend
+        // Update the community label in the Communities legend
         const cid = ann.community;
         const item = legendItems[cid];
         if (item) {
@@ -1486,7 +1486,7 @@ function applyAnnotation(ann) {
                 if (it) {
                     const ls = it.querySelector('.legend-label');
                     const c = communities[cid];
-                    if (ls && c) ls.textContent = (c.topNodes || []).slice(0, 3).join(', ') || 'Topic ' + cid;
+                    if (ls && c) ls.textContent = (c.topNodes || []).slice(0, 3).join(', ') || 'Community ' + cid;
                 }
             }
         });
