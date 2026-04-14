@@ -57,6 +57,16 @@ _DEFAULT_PREFIXES = {
 }
 
 
+def _parse_turtle(source: Path | str) -> Graph:
+    """Parse Turtle from a file path or a TTL string."""
+    g = Graph()
+    if isinstance(source, Path):
+        g.parse(str(source), format="turtle")
+    else:
+        g.parse(data=source, format="turtle")
+    return g
+
+
 def _short(uri: Node) -> str:
     s = str(uri)
     if "#" in s:
@@ -226,8 +236,7 @@ class RemainsStore:
 
         # Load system ontology into urn:ontology
         if self._SYSTEM_ONTOLOGY.exists():
-            g = Graph()
-            g.parse(str(self._SYSTEM_ONTOLOGY), format="turtle")
+            g = _parse_turtle(self._SYSTEM_ONTOLOGY)
             count = self._insert_triples(conn, g, "urn:ontology")
             result["system_ontology_triples"] = count
             for prefix, ns in g.namespaces():
@@ -239,8 +248,7 @@ class RemainsStore:
 
         # Load user ontology into urn:ontology
         if ontology_path:
-            g = Graph()
-            g.parse(str(ontology_path), format="turtle")
+            g = _parse_turtle(ontology_path)
             count = self._insert_triples(conn, g, "urn:ontology")
             result["user_ontology_triples"] = count
             for prefix, ns in g.namespaces():
@@ -252,15 +260,13 @@ class RemainsStore:
 
         # Load system shapes into urn:shacl
         if self._SYSTEM_SHAPES.exists():
-            g = Graph()
-            g.parse(str(self._SYSTEM_SHAPES), format="turtle")
+            g = _parse_turtle(self._SYSTEM_SHAPES)
             count = self._insert_triples(conn, g, "urn:shacl")
             result["system_shacl_triples"] = count
 
         # Load user shapes into urn:shacl
         if shacl_path:
-            g = Graph()
-            g.parse(str(shacl_path), format="turtle")
+            g = _parse_turtle(shacl_path)
             count = self._insert_triples(conn, g, "urn:shacl")
             result["user_shacl_triples"] = count
 
@@ -271,12 +277,11 @@ class RemainsStore:
     # Load
     # -----------------------------------------------------------------
 
-    def load(self, data_path: Path) -> dict:
+    def load(self, data: Path | str) -> dict:
         """Load Turtle data into default graph. Validates against ontology + shapes."""
         conn = self._connect()
 
-        data_graph = Graph()
-        data_graph.parse(str(data_path), format="turtle")
+        data_graph = _parse_turtle(data)
 
         schema_graph = self._load_graph(conn, "urn:ontology")
         shacl_graph = self._load_graph(conn, "urn:shacl")
@@ -348,36 +353,33 @@ class RemainsStore:
     # Update schema
     # -----------------------------------------------------------------
 
-    def update_ontology(self, ontology_path: Path) -> int:
+    def update_ontology(self, ontology: Path | str) -> int:
         """Replace user ontology triples. System triples protected."""
-        self._check_no_system_namespace(ontology_path)
+        self._check_no_system_namespace(ontology)
         conn = self._connect()
         conn.execute(
             "DELETE FROM triples WHERE graph = 'urn:ontology' AND subject NOT LIKE 'urn:remains:%'",
         )
-        g = Graph()
-        g.parse(str(ontology_path), format="turtle")
+        g = _parse_turtle(ontology)
         count = self._insert_triples(conn, g, "urn:ontology")
         conn.commit()
         return count
 
-    def update_shacl(self, shacl_path: Path) -> int:
+    def update_shacl(self, shacl: Path | str) -> int:
         """Replace user SHACL triples. System shapes protected."""
-        self._check_no_system_namespace(shacl_path)
+        self._check_no_system_namespace(shacl)
         conn = self._connect()
         conn.execute(
             "DELETE FROM triples WHERE graph = 'urn:shacl' AND subject NOT LIKE 'urn:remains:%'",
         )
-        g = Graph()
-        g.parse(str(shacl_path), format="turtle")
+        g = _parse_turtle(shacl)
         count = self._insert_triples(conn, g, "urn:shacl")
         conn.commit()
         return count
 
-    def _check_no_system_namespace(self, ttl_path: Path):
+    def _check_no_system_namespace(self, source: Path | str):
         """Raise ValueError if file contains system namespace triples."""
-        g = Graph()
-        g.parse(str(ttl_path), format="turtle")
+        g = _parse_turtle(source)
         for s, _, _ in g:
             s_str = str(s)
             for ns in self._SYSTEM_NAMESPACES:

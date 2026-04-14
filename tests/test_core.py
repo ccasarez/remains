@@ -441,3 +441,47 @@ class TestDisplayNames:
 
         name = get_display_name("http://example.com/things/my-thing", store)
         assert name == "my-thing"
+
+
+class TestStdinInput:
+    """Store methods accept TTL strings in addition to file paths."""
+
+    @pytest.fixture
+    def store(self, tmp_path):
+        db = RemainsStore(tmp_path / "test.db")
+        db.init(
+            ontology_path=EXAMPLES_ROOT / "ontology.ttl",
+            shacl_path=EXAMPLES_ROOT / "shapes.ttl",
+        )
+        yield db
+        db.close()
+
+    def test_load_from_string(self, store):
+        data_ttl = (EXAMPLES_ROOT / "data_good.ttl").read_text()
+        result = store.load(data_ttl)
+        assert result["loaded"] is True
+        assert result["triple_count"] > 0
+
+    def test_load_rejects_bad_string(self, store):
+        bad_ttl = (EXAMPLES_ROOT / "data_bad.ttl").read_text()
+        result = store.load(bad_ttl)
+        assert result["loaded"] is False
+
+    def test_update_ontology_from_string(self, store):
+        ont_ttl = (EXAMPLES_ROOT / "ontology.ttl").read_text()
+        count = store.update_ontology(ont_ttl)
+        assert count > 0
+
+    def test_update_shacl_from_string(self, store):
+        shapes_ttl = (EXAMPLES_ROOT / "shapes.ttl").read_text()
+        count = store.update_shacl(shapes_ttl)
+        assert count > 0
+
+    def test_update_ontology_string_rejects_system_ns(self, store):
+        evil_ttl = """
+@prefix remains: <urn:remains:system#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+remains:EvilClass a owl:Class .
+"""
+        with pytest.raises(ValueError, match="system namespace"):
+            store.update_ontology(evil_ttl)
