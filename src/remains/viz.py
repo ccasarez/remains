@@ -882,9 +882,10 @@ function updatePinVisuals() {
             text.setAttribute('opacity', '1');
             glow.setAttribute('opacity', '0');
         });
-        edgeEls.forEach(({ el }) => {
+        edgeEls.forEach(({ el, data: e }) => {
             el.setAttribute('stroke', 'rgba(255,255,255,0.06)');
             el.setAttribute('stroke-width', '1');
+            if (e._labelEl) e._labelEl.setAttribute('opacity', '1');
         });
         return;
     }
@@ -924,6 +925,7 @@ function updatePinVisuals() {
                      (pinnedNodes.has(e.source) || pinnedNodes.has(e.target));
         el.setAttribute('stroke', show ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.015)');
         el.setAttribute('stroke-width', show ? '2' : '1');
+        if (e._labelEl) e._labelEl.setAttribute('opacity', show ? '1' : '0.06');
     });
 }
 
@@ -1130,6 +1132,7 @@ searchInput.addEventListener('input', () => {
     edgeEls.forEach(({ el, data: e }) => {
         const m = matching.has(e.source) && matching.has(e.target);
         el.setAttribute('stroke', m ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.01)');
+        if (e._labelEl) e._labelEl.setAttribute('opacity', m ? '1' : '0.06');
     });
 });
 
@@ -1184,6 +1187,7 @@ function applyClassFilter() {
         const sv = nodeIndex[e.source], tv = nodeIndex[e.target];
         const visible = sv && tv && !sv._dimmed && !tv._dimmed;
         el.setAttribute('stroke', visible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.01)');
+        if (e._labelEl) e._labelEl.setAttribute('opacity', visible ? '1' : '0.04');
     });
 }
 
