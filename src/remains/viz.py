@@ -69,9 +69,8 @@ def _build_graph_data(
         FILTER(!STRSTARTS(STR(?p), "http://www.w3.org/2004/02/skos/"))
         FILTER(!STRSTARTS(STR(?s), "http://www.w3.org/"))
         FILTER(!STRSTARTS(STR(?o), "http://www.w3.org/"))
-        FILTER(!STRSTARTS(STR(?p), "http://www.w3.org/ns/prov#"))
-        ?s a ?stype . FILTER(!STRSTARTS(STR(?stype), "http://www.w3.org/"))
-        ?o a ?otype . FILTER(!STRSTARTS(STR(?otype), "http://www.w3.org/"))
+        ?s a ?stype . FILTER(!STRSTARTS(STR(?stype), "http://www.w3.org/2002/07/owl#") && !STRSTARTS(STR(?stype), "http://www.w3.org/ns/shacl#") && !STRSTARTS(STR(?stype), "http://www.w3.org/2000/01/rdf-schema#") && !STRSTARTS(STR(?stype), "http://www.w3.org/1999/02/22-rdf-syntax-ns#"))
+        ?o a ?otype . FILTER(!STRSTARTS(STR(?otype), "http://www.w3.org/2002/07/owl#") && !STRSTARTS(STR(?otype), "http://www.w3.org/ns/shacl#") && !STRSTARTS(STR(?otype), "http://www.w3.org/2000/01/rdf-schema#") && !STRSTARTS(STR(?otype), "http://www.w3.org/1999/02/22-rdf-syntax-ns#"))
     }
     """
     relationship_rows = _select_rows(graph, sparql)
@@ -103,8 +102,9 @@ def _build_graph_data(
         ?s ?p ?o .
         FILTER(isLiteral(?o))
         FILTER(!STRSTARTS(STR(?s), "http://www.w3.org/"))
-        FILTER(!STRSTARTS(STR(?p), "http://www.w3.org/"))
-        FILTER(!STRSTARTS(STR(?p), "http://www.w3.org/ns/prov#"))
+        FILTER(!STRSTARTS(STR(?p), "http://www.w3.org/2002/07/owl#"))
+        FILTER(!STRSTARTS(STR(?p), "http://www.w3.org/ns/shacl#"))
+        FILTER(!STRSTARTS(STR(?p), "http://www.w3.org/1999/02/22-rdf-syntax-ns#"))
     }
     """
     props_rows = _select_rows(graph, props_sparql)
