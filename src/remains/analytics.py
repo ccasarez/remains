@@ -53,6 +53,11 @@ def compute_analytics(
     # ── Degree ──
     degrees = dict(G.degree())
 
+    # ── Class (RDF type) palette ──
+    distinct_types = sorted({n.get("type", "") for n in nodes} - {""})
+    class_colors = _generate_community_palette(len(distinct_types))
+    class_palette = {t: class_colors[i] for i, t in enumerate(distinct_types)}
+
     # ── Annotate nodes ──
     bc_values = list(bc_scores.values()) if bc_scores else [0]
     bc_min, bc_max = min(bc_values), max(bc_values)
@@ -62,6 +67,7 @@ def compute_analytics(
         cid = node_community.get(nid, 0)
         n["community"] = cid
         n["communityColor"] = community_colors[cid] if cid < len(community_colors) else "#b2bec3"
+        n["classColor"] = class_palette.get(n.get("type", ""), "#b2bec3")
         n["bc"] = round(bc_scores.get(nid, 0), 4)
         n["degree"] = degrees.get(nid, 0)
 
@@ -108,12 +114,13 @@ def compute_analytics(
     top_bc = sorted(nodes, key=lambda n: -n["bc"])[:4]
     top_bc_list = [
         {"id": n["id"], "label": n["label"], "bc": n["bc"],
-         "community": n["community"], "color": n["communityColor"]}
+         "community": n["community"], "color": n["classColor"]}
         for n in top_bc
     ]
 
     return {
         "communities": community_meta,
+        "classPalette": class_palette,
         "modularity": round(modularity, 3),
         "density": round(density, 4),
         "componentCount": n_components,

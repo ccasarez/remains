@@ -169,10 +169,9 @@ def _build_graph_data(
     from remains.analytics import compute_analytics
     analytics = compute_analytics(nodes, edges)
 
-    # After analytics, node colors come from community
-    # Keep type info but use community color as primary
+    # Node color: use RDF class color as primary
     for n in nodes:
-        n["color"] = n.get("communityColor", n["color"])
+        n["color"] = n.get("classColor", n.get("communityColor", n["color"]))
 
     return {
         "nodes": nodes,
@@ -574,7 +573,7 @@ svg { width: 100%; height: 100%; }
     </div>
     <div class="panel">
         <input type="text" id="search" placeholder="Search nodes… ( / )" autocomplete="off">
-        <h2>Communities</h2>
+        <h2>Classes</h2>
         <div class="legend" id="legend"></div>
         <div class="btn-row">
             <button class="btn" data-action="toggle-analytics" title="Analytics panel">◈ Analytics</button>
@@ -883,9 +882,10 @@ function updatePinVisuals() {
             text.setAttribute('opacity', '1');
             glow.setAttribute('opacity', '0');
         });
-        edgeEls.forEach(({ el }) => {
+        edgeEls.forEach(({ el, data: e }) => {
             el.setAttribute('stroke', 'rgba(255,255,255,0.06)');
             el.setAttribute('stroke-width', '1');
+            if (e._labelEl) e._labelEl.setAttribute('opacity', '1');
         });
         return;
     }
@@ -925,6 +925,7 @@ function updatePinVisuals() {
                      (pinnedNodes.has(e.source) || pinnedNodes.has(e.target));
         el.setAttribute('stroke', show ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.015)');
         el.setAttribute('stroke-width', show ? '2' : '1');
+        if (e._labelEl) e._labelEl.setAttribute('opacity', show ? '1' : '0.06');
     });
 }
 
@@ -1131,51 +1132,53 @@ searchInput.addEventListener('input', () => {
     edgeEls.forEach(({ el, data: e }) => {
         const m = matching.has(e.source) && matching.has(e.target);
         el.setAttribute('stroke', m ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.01)');
+        if (e._labelEl) e._labelEl.setAttribute('opacity', m ? '1' : '0.06');
     });
 });
 
-// ── COMMUNITY LEGEND ──
+// ── CLASS LEGEND ──
 const legendEl = document.getElementById('legend');
-const activeCommunities = new Set(communities.map(c => c.id));
+const classPalette = analytics.classPalette || {};
+const allClasses = Object.keys(classPalette).sort();
+const activeClasses = new Set(allClasses);
 
-const legendItems = {};  // community id -> DOM element
+const legendItems = {};  // class name -> DOM element
 
-communities.forEach(c => {
-    if (c.nodeCount === 0) return;
+allClasses.forEach(cls => {
+    const color = classPalette[cls];
+    const count = nodes.filter(n => n.type === cls).length;
+    if (count === 0) return;
     const item = document.createElement('div');
     item.className = 'legend-item';
-    item.dataset.community = c.id;
-    const topLabels = (c.topNodes || []).slice(0, 3).join(', ');
-    item.innerHTML = `<span class="legend-dot" style="background:${c.color}"></span>
-        <span class="legend-label">${topLabels || 'Community ' + c.id}</span>
-        <span class="legend-meta">${c.nodeCount}</span>`;
+    item.dataset.cls = cls;
+    const shortName = cls.includes(':') ? cls.split(':').pop() : cls;
+    item.innerHTML = `<span class="legend-dot" style="background:${color}"></span>
+        <span class="legend-label">${shortName}</span>
+        <span class="legend-meta">${count}</span>`;
     item.addEventListener('click', () => {
-        const allActive = activeCommunities.size === communities.length;
-        const onlyThis = activeCommunities.size === 1 && activeCommunities.has(c.id);
+        const allActive = activeClasses.size === allClasses.length;
+        const onlyThis = activeClasses.size === 1 && activeClasses.has(cls);
 
-        if (onlyThis || (!allActive && activeCommunities.has(c.id))) {
-            // Clicking the sole selected community (or re-clicking selected) → restore all
-            activeCommunities.clear();
-            communities.forEach(cc => activeCommunities.add(cc.id));
+        if (onlyThis || (!allActive && activeClasses.has(cls))) {
+            activeClasses.clear();
+            allClasses.forEach(c => activeClasses.add(c));
         } else {
-            // Select only this community
-            activeCommunities.clear();
-            activeCommunities.add(c.id);
+            activeClasses.clear();
+            activeClasses.add(cls);
         }
 
-        // Update dimmed state on all legend items
-        Object.entries(legendItems).forEach(([id, el]) => {
-            el.classList.toggle('dimmed', !activeCommunities.has(Number(id)));
+        Object.entries(legendItems).forEach(([c, el]) => {
+            el.classList.toggle('dimmed', !activeClasses.has(c));
         });
-        applyCommunityFilter();
+        applyClassFilter();
     });
     legendEl.appendChild(item);
-    legendItems[c.id] = item;
+    legendItems[cls] = item;
 });
 
-function applyCommunityFilter() {
+function applyClassFilter() {
     nodeEls.forEach(({ circle, text, data: n }) => {
-        const visible = activeCommunities.has(n.community);
+        const visible = activeClasses.has(n.type);
         n._dimmed = !visible;
         circle.setAttribute('opacity', visible ? '0.85' : '0.04');
         text.setAttribute('opacity', visible ? '1' : '0.04');
@@ -1184,6 +1187,7 @@ function applyCommunityFilter() {
         const sv = nodeIndex[e.source], tv = nodeIndex[e.target];
         const visible = sv && tv && !sv._dimmed && !tv._dimmed;
         el.setAttribute('stroke', visible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.01)');
+        if (e._labelEl) e._labelEl.setAttribute('opacity', visible ? '1' : '0.04');
     });
 }
 

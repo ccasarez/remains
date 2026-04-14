@@ -116,7 +116,7 @@ Scope the view with `--query "CONSTRUCT { ... }"` or
 `--focus <uri> [--hops N]` (mutually exclusive). See `remains viz --help`.
 
 The visualizer shows an interactive force-directed graph with:
-- **Community detection** (Louvain) — nodes colored by community cluster
+- **Class coloring** — nodes colored by RDF type (class), with a clickable legend to filter
 - **Betweenness centrality** — node size shows bridge importance
 - **Structural gap analysis** — identifies disconnected areas
 - **Analytics panel** (toggle with ◈ button) — modularity, bias score,
@@ -228,11 +228,7 @@ remains annotate toast -t "This cluster has no connection to Community 2"
    ontology and SHACL shapes. There is no bypass flag.
 5. **If the ontology doesn't cover a domain**, tell the user and offer to
    extend it with `remains update-ontology`.
-6. **When visualizing**, always label communities via
-   `remains annotate label-community` after launching `remains viz` — the
-   auto-generated labels are just top node names and need human-readable
-   descriptions.
-7. **Annotations persist in server memory** — they replay to new browser
+6. **Annotations persist in server memory** — they replay to new browser
    clients. Use `remains annotate clear` to reset.
-8. **When a flag or argument isn't documented here, check
+7. **When a flag or argument isn't documented here, check
    `remains <command> --help`.** The CLI is the authoritative reference.
