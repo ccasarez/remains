@@ -41,6 +41,13 @@ def _is_sqlite(path: Path) -> bool:
         return False
 
 
+def _read_turtle(source: str) -> str:
+    """Read TTL from a file path or stdin (when source is '-')."""
+    if source == "-":
+        return sys.stdin.read()
+    return Path(source).read_text()
+
+
 @click.group()
 @click.version_option(version="0.2.0")
 def cli():
@@ -54,7 +61,9 @@ def cli():
 
     \b
     Quick start:
-      remains init --ontology ontology.ttl --shacl shapes.ttl
+      remains init
+      remains load-ontology ontology.ttl
+      remains load-shacl shapes.ttl
       remains load data.ttl
       remains query "SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10"
       remains prompt
@@ -71,41 +80,40 @@ def cli():
 
 @cli.command()
 @click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
-@click.option("--ontology", type=click.Path(exists=True, path_type=Path), help="OWL ontology file (.ttl)")
-@click.option("--shacl", type=click.Path(exists=True, path_type=Path), help="SHACL shapes file (.ttl)")
 @click.option("--json", "as_json", is_flag=True)
-def init(db: Path | None, ontology: Path | None, shacl: Path | None, as_json: bool):
+def init(db: Path | None, as_json: bool):
     """Initialize a new triple store database.
 
     System ontology and shapes are loaded automatically.
+    Use 'load-ontology' and 'load-shacl' to add user schemas.
     """
     store = _open_store(db)
     try:
-        result = store.init(ontology_path=ontology, shacl_path=shacl)
+        result = store.init()
         if as_json:
             click.echo(json.dumps(result, indent=2))
         else:
             click.echo(f"Initialized {db or store._dsn}")
             click.echo(f"  System ontology: {result['system_ontology_triples']} triples")
-            click.echo(f"  User ontology:   {result['user_ontology_triples']} triples")
             click.echo(f"  System shapes:   {result['system_shacl_triples']} triples")
-            click.echo(f"  User shapes:     {result['user_shacl_triples']} triples")
     finally:
         store.close()
 
 
 @cli.command()
-@click.argument("data", type=click.Path(exists=True, path_type=Path))
+@click.argument("data", type=str)
 @click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
 @click.option("--json", "as_json", is_flag=True)
-def load(data: Path, db: Path | None, as_json: bool):
+def load(data: str, db: Path | None, as_json: bool):
     """Load Turtle data into the default graph.
 
     Validates against ontology and SHACL shapes. Rejects invalid data.
+    Pass '-' to read from stdin.
     """
     store = _open_store(db)
     try:
-        result = store.load(data)
+        ttl = _read_turtle(data)
+        result = store.load(ttl)
 
         if not result["loaded"]:
             vr: ValidationResult = result["validation"]
@@ -127,16 +135,17 @@ def load(data: Path, db: Path | None, as_json: bool):
 
 
 @cli.command()
-@click.argument("data", type=click.Path(exists=True, path_type=Path))
+@click.argument("data", type=str)
 @click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
 @click.option("--regime", "-r", type=click.Choice(["none", "rdfs", "owlrl", "both"]), default="none")
 @click.option("--json", "as_json", is_flag=True)
-def check(data: Path, db: Path | None, regime: str, as_json: bool):
+def check(data: str, db: Path | None, regime: str, as_json: bool):
     """Validate RDF data against the store's ontology and SHACL shapes.
 
     Same validation pipeline as 'remains load', but does not commit
     anything to the store. The ontology and shapes are always loaded
     from the database (via --db or REMAINS_DSN).
+    Pass '-' to read from stdin.
     """
     from rdflib import Graph
     from remains.store import run_validation
@@ -147,8 +156,9 @@ def check(data: Path, db: Path | None, regime: str, as_json: bool):
         schema_graph = store._load_graph(conn, "urn:ontology")
         shacl_graph = store._load_graph(conn, "urn:shacl")
 
+        ttl = _read_turtle(data)
         data_graph = Graph()
-        data_graph.parse(str(data), format="turtle")
+        data_graph.parse(data=ttl, format="turtle")
 
         result = run_validation(
             schema_graph=schema_graph,
@@ -256,28 +266,36 @@ def info(db: Path | None, as_json: bool):
         store.close()
 
 
-@cli.command("update-ontology")
-@click.argument("ontology", type=click.Path(exists=True, path_type=Path))
+@cli.command("load-ontology")
+@click.argument("ontology", type=str)
 @click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
-def update_ontology(ontology: Path, db: Path | None):
-    """Replace user ontology. System ontology is protected."""
+def load_ontology(ontology: str, db: Path | None):
+    """Replace user ontology. System ontology is protected.
+
+    Pass '-' to read from stdin.
+    """
     store = _open_store(db)
     try:
-        count = store.update_ontology(ontology)
-        click.echo(f"Updated user ontology: {count} triples")
+        ttl = _read_turtle(ontology)
+        count = store.update_ontology(ttl)
+        click.echo(f"Loaded user ontology: {count} triples")
     finally:
         store.close()
 
 
-@cli.command("update-shacl")
-@click.argument("shacl", type=click.Path(exists=True, path_type=Path))
+@cli.command("load-shacl")
+@click.argument("shacl", type=str)
 @click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
-def update_shacl(shacl: Path, db: Path | None):
-    """Replace user SHACL shapes. System shapes are protected."""
+def load_shacl(shacl: str, db: Path | None):
+    """Replace user SHACL shapes. System shapes are protected.
+
+    Pass '-' to read from stdin.
+    """
     store = _open_store(db)
     try:
-        count = store.update_shacl(shacl)
-        click.echo(f"Updated user shapes: {count} triples")
+        ttl = _read_turtle(shacl)
+        count = store.update_shacl(ttl)
+        click.echo(f"Loaded user shapes: {count} triples")
     finally:
         store.close()
 

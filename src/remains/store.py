@@ -357,9 +357,14 @@ class RemainsStore:
         """Replace user ontology triples. System triples protected."""
         self._check_no_system_namespace(ontology)
         conn = self._connect()
-        conn.execute(
-            "DELETE FROM triples WHERE graph = 'urn:ontology' AND subject NOT LIKE 'urn:remains:%'",
-        )
+        # Wipe the entire graph and re-insert system + user triples.
+        # This is necessary because system shapes may contain blank nodes
+        # (e.g. RDF lists in sh:or) whose subjects don't match the
+        # urn:remains: prefix filter.
+        conn.execute("DELETE FROM triples WHERE graph = 'urn:ontology'")
+        if self._SYSTEM_ONTOLOGY.exists():
+            sys_g = _parse_turtle(self._SYSTEM_ONTOLOGY)
+            self._insert_triples(conn, sys_g, "urn:ontology")
         g = _parse_turtle(ontology)
         count = self._insert_triples(conn, g, "urn:ontology")
         conn.commit()
@@ -369,9 +374,14 @@ class RemainsStore:
         """Replace user SHACL triples. System shapes protected."""
         self._check_no_system_namespace(shacl)
         conn = self._connect()
-        conn.execute(
-            "DELETE FROM triples WHERE graph = 'urn:shacl' AND subject NOT LIKE 'urn:remains:%'",
-        )
+        # Wipe the entire graph and re-insert system + user triples.
+        # This is necessary because system shapes may contain blank nodes
+        # (e.g. RDF lists in sh:or) whose subjects don't match the
+        # urn:remains: prefix filter.
+        conn.execute("DELETE FROM triples WHERE graph = 'urn:shacl'")
+        if self._SYSTEM_SHAPES.exists():
+            sys_g = _parse_turtle(self._SYSTEM_SHAPES)
+            self._insert_triples(conn, sys_g, "urn:shacl")
         g = _parse_turtle(shacl)
         count = self._insert_triples(conn, g, "urn:shacl")
         conn.commit()

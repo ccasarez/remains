@@ -27,10 +27,9 @@ class TestInit:
     def test_init_creates_three_graphs(self, tmp_path):
         """Init should create exactly 3 graphs: default, urn:ontology, urn:shacl."""
         db = RemainsStore(tmp_path / "test.db")
-        db.init(
-            ontology_path=EXAMPLES_ROOT / "ontology.ttl",
-            shacl_path=EXAMPLES_ROOT / "shapes.ttl",
-        )
+        db.init()
+        db.update_ontology(EXAMPLES_ROOT / "ontology.ttl")
+        db.update_shacl(EXAMPLES_ROOT / "shapes.ttl")
 
         conn = db._connect()
         graphs = conn.execute(
@@ -48,10 +47,9 @@ class TestInit:
     def test_init_loads_system_ontology(self, tmp_path):
         """System ontology (remains:RequiresDisplayName, etc.) must be in urn:ontology."""
         db = RemainsStore(tmp_path / "test.db")
-        db.init(
-            ontology_path=EXAMPLES_ROOT / "ontology.ttl",
-            shacl_path=EXAMPLES_ROOT / "shapes.ttl",
-        )
+        db.init()
+        db.update_ontology(EXAMPLES_ROOT / "ontology.ttl")
+        db.update_shacl(EXAMPLES_ROOT / "shapes.ttl")
 
         conn = db._connect()
         marker_exists = conn.execute(
@@ -64,10 +62,9 @@ class TestInit:
     def test_init_loads_user_ontology(self, tmp_path):
         """User ontology classes must also be in urn:ontology."""
         db = RemainsStore(tmp_path / "test.db")
-        db.init(
-            ontology_path=EXAMPLES_ROOT / "ontology.ttl",
-            shacl_path=EXAMPLES_ROOT / "shapes.ttl",
-        )
+        db.init()
+        db.update_ontology(EXAMPLES_ROOT / "ontology.ttl")
+        db.update_shacl(EXAMPLES_ROOT / "shapes.ttl")
 
         conn = db._connect()
         # Check user class ex:Person exists in urn:ontology
@@ -81,10 +78,9 @@ class TestInit:
     def test_init_loads_system_shapes(self, tmp_path):
         """System shapes (remains-sh:DisplayNameShape, etc.) must be in urn:shacl."""
         db = RemainsStore(tmp_path / "test.db")
-        db.init(
-            ontology_path=EXAMPLES_ROOT / "ontology.ttl",
-            shacl_path=EXAMPLES_ROOT / "shapes.ttl",
-        )
+        db.init()
+        db.update_ontology(EXAMPLES_ROOT / "ontology.ttl")
+        db.update_shacl(EXAMPLES_ROOT / "shapes.ttl")
 
         conn = db._connect()
         display_shape = conn.execute(
@@ -97,10 +93,9 @@ class TestInit:
     def test_init_loads_user_shapes(self, tmp_path):
         """User shapes must also be in urn:shacl."""
         db = RemainsStore(tmp_path / "test.db")
-        db.init(
-            ontology_path=EXAMPLES_ROOT / "ontology.ttl",
-            shacl_path=EXAMPLES_ROOT / "shapes.ttl",
-        )
+        db.init()
+        db.update_ontology(EXAMPLES_ROOT / "ontology.ttl")
+        db.update_shacl(EXAMPLES_ROOT / "shapes.ttl")
 
         conn = db._connect()
         # The examples/shapes.ttl has shapes — check any user shape exists
@@ -118,10 +113,9 @@ class TestLoad:
     @pytest.fixture
     def store(self, tmp_path):
         db = RemainsStore(tmp_path / "test.db")
-        db.init(
-            ontology_path=EXAMPLES_ROOT / "ontology.ttl",
-            shacl_path=EXAMPLES_ROOT / "shapes.ttl",
-        )
+        db.init()
+        db.update_ontology(EXAMPLES_ROOT / "ontology.ttl")
+        db.update_shacl(EXAMPLES_ROOT / "shapes.ttl")
         yield db
         db.close()
 
@@ -171,10 +165,9 @@ class TestOntologyShapesAreNotDataTargets:
     @pytest.fixture
     def store(self, tmp_path):
         db = RemainsStore(tmp_path / "test.db")
-        db.init(
-            ontology_path=self.GIST_ROOT / "ontology.ttl",
-            shacl_path=self.GIST_ROOT / "shapes.ttl",
-        )
+        db.init()
+        db.update_ontology(self.GIST_ROOT / "ontology.ttl")
+        db.update_shacl(self.GIST_ROOT / "shapes.ttl")
         yield db
         db.close()
 
@@ -266,10 +259,9 @@ class TestPrompt:
     @pytest.fixture
     def store(self, tmp_path):
         db = RemainsStore(tmp_path / "test.db")
-        db.init(
-            ontology_path=EXAMPLES_ROOT / "ontology.ttl",
-            shacl_path=EXAMPLES_ROOT / "shapes.ttl",
-        )
+        db.init()
+        db.update_ontology(EXAMPLES_ROOT / "ontology.ttl")
+        db.update_shacl(EXAMPLES_ROOT / "shapes.ttl")
         yield db
         db.close()
 
@@ -296,10 +288,9 @@ class TestNamespaceProtection:
     @pytest.fixture
     def store(self, tmp_path):
         db = RemainsStore(tmp_path / "test.db")
-        db.init(
-            ontology_path=EXAMPLES_ROOT / "ontology.ttl",
-            shacl_path=EXAMPLES_ROOT / "shapes.ttl",
-        )
+        db.init()
+        db.update_ontology(EXAMPLES_ROOT / "ontology.ttl")
+        db.update_shacl(EXAMPLES_ROOT / "shapes.ttl")
         yield db
         db.close()
 
@@ -336,10 +327,9 @@ class TestExport:
     @pytest.fixture
     def store(self, tmp_path):
         db = RemainsStore(tmp_path / "test.db")
-        db.init(
-            ontology_path=EXAMPLES_ROOT / "ontology.ttl",
-            shacl_path=EXAMPLES_ROOT / "shapes.ttl",
-        )
+        db.init()
+        db.update_ontology(EXAMPLES_ROOT / "ontology.ttl")
+        db.update_shacl(EXAMPLES_ROOT / "shapes.ttl")
         db.load(EXAMPLES_ROOT / "data_good.ttl")
         yield db
         db.close()
@@ -373,10 +363,9 @@ class TestInfo:
     @pytest.fixture
     def store(self, tmp_path):
         db = RemainsStore(tmp_path / "test.db")
-        db.init(
-            ontology_path=EXAMPLES_ROOT / "ontology.ttl",
-            shacl_path=EXAMPLES_ROOT / "shapes.ttl",
-        )
+        db.init()
+        db.update_ontology(EXAMPLES_ROOT / "ontology.ttl")
+        db.update_shacl(EXAMPLES_ROOT / "shapes.ttl")
         db.load(EXAMPLES_ROOT / "data_good.ttl")
         yield db
         db.close()
@@ -403,10 +392,9 @@ class TestDisplayNames:
     @pytest.fixture
     def store(self, tmp_path):
         db = RemainsStore(tmp_path / "test.db")
-        db.init(
-            ontology_path=EXAMPLES_ROOT / "ontology.ttl",
-            shacl_path=EXAMPLES_ROOT / "shapes.ttl",
-        )
+        db.init()
+        db.update_ontology(EXAMPLES_ROOT / "ontology.ttl")
+        db.update_shacl(EXAMPLES_ROOT / "shapes.ttl")
         db.load(EXAMPLES_ROOT / "data_good.ttl")
         yield db
         db.close()
@@ -449,10 +437,9 @@ class TestStdinInput:
     @pytest.fixture
     def store(self, tmp_path):
         db = RemainsStore(tmp_path / "test.db")
-        db.init(
-            ontology_path=EXAMPLES_ROOT / "ontology.ttl",
-            shacl_path=EXAMPLES_ROOT / "shapes.ttl",
-        )
+        db.init()
+        db.update_ontology(EXAMPLES_ROOT / "ontology.ttl")
+        db.update_shacl(EXAMPLES_ROOT / "shapes.ttl")
         yield db
         db.close()
 
@@ -485,3 +472,64 @@ remains:EvilClass a owl:Class .
 """
         with pytest.raises(ValueError, match="system namespace"):
             store.update_ontology(evil_ttl)
+
+
+class TestCLIStdin:
+    """CLI commands accept '-' for stdin."""
+
+    def test_load_from_stdin(self, tmp_path):
+        from click.testing import CliRunner
+        from remains.cli import cli
+
+        db_path = tmp_path / "test.db"
+        runner = CliRunner()
+        runner.invoke(cli, ["init", "-d", str(db_path)])
+
+        ont_ttl = (EXAMPLES_ROOT / "ontology.ttl").read_text()
+        runner.invoke(cli, ["load-ontology", "-", "-d", str(db_path)], input=ont_ttl)
+        shapes_ttl = (EXAMPLES_ROOT / "shapes.ttl").read_text()
+        runner.invoke(cli, ["load-shacl", "-", "-d", str(db_path)], input=shapes_ttl)
+
+        data_ttl = (EXAMPLES_ROOT / "data_good.ttl").read_text()
+        result = runner.invoke(cli, ["load", "-", "-d", str(db_path)], input=data_ttl)
+        assert result.exit_code == 0
+        assert "Loaded" in result.output
+
+    def test_check_from_stdin(self, tmp_path):
+        from click.testing import CliRunner
+        from remains.cli import cli
+
+        db_path = tmp_path / "test.db"
+        runner = CliRunner()
+        runner.invoke(cli, ["init", "-d", str(db_path)])
+
+        ont_ttl = (EXAMPLES_ROOT / "ontology.ttl").read_text()
+        runner.invoke(cli, ["load-ontology", "-", "-d", str(db_path)], input=ont_ttl)
+        shapes_ttl = (EXAMPLES_ROOT / "shapes.ttl").read_text()
+        runner.invoke(cli, ["load-shacl", "-", "-d", str(db_path)], input=shapes_ttl)
+
+        data_ttl = (EXAMPLES_ROOT / "data_good.ttl").read_text()
+        result = runner.invoke(cli, ["check", "-", "-d", str(db_path)], input=data_ttl)
+        assert result.exit_code == 0
+
+    def test_load_ontology_from_file(self, tmp_path):
+        from click.testing import CliRunner
+        from remains.cli import cli
+
+        db_path = tmp_path / "test.db"
+        runner = CliRunner()
+        runner.invoke(cli, ["init", "-d", str(db_path)])
+        result = runner.invoke(cli, ["load-ontology", str(EXAMPLES_ROOT / "ontology.ttl"), "-d", str(db_path)])
+        assert result.exit_code == 0
+        assert "ontology" in result.output.lower()
+
+    def test_load_shacl_from_file(self, tmp_path):
+        from click.testing import CliRunner
+        from remains.cli import cli
+
+        db_path = tmp_path / "test.db"
+        runner = CliRunner()
+        runner.invoke(cli, ["init", "-d", str(db_path)])
+        result = runner.invoke(cli, ["load-shacl", str(EXAMPLES_ROOT / "shapes.ttl"), "-d", str(db_path)])
+        assert result.exit_code == 0
+        assert "shape" in result.output.lower()
