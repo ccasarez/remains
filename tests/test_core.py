@@ -533,3 +533,17 @@ class TestCLIStdin:
         result = runner.invoke(cli, ["load-shacl", str(EXAMPLES_ROOT / "shapes.ttl"), "-d", str(db_path)])
         assert result.exit_code == 0
         assert "shape" in result.output.lower()
+
+
+class TestPromptStdin:
+    """Prompt command accepts '-' for stdin."""
+
+    def test_prompt_from_stdin(self, tmp_path):
+        from click.testing import CliRunner
+        from remains.cli import cli
+
+        ont_ttl = (EXAMPLES_ROOT / "ontology.ttl").read_text()
+        runner = CliRunner()
+        result = runner.invoke(cli, ["prompt", "-"], input=ont_ttl)
+        assert result.exit_code == 0
+        assert "Person" in result.output

@@ -17,10 +17,13 @@ def _short(uri: Node) -> str:
     return s.split("/")[-1]
 
 
-def prompt_from_file(ontology_path: Path) -> str:
-    """Generate prompt context from an ontology file."""
+def prompt_from_file(source: Path | str) -> str:
+    """Generate prompt context from an ontology file or TTL string."""
     g = Graph()
-    g.parse(str(ontology_path), format="turtle")
+    if isinstance(source, Path):
+        g.parse(str(source), format="turtle")
+    else:
+        g.parse(data=source, format="turtle")
     return _generate_prompt(g)
 
 

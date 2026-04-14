@@ -69,6 +69,12 @@ def cli():
       remains prompt
 
     \b
+    Pipe-friendly (use '-' for stdin):
+      cat ontology.ttl | remains load-ontology -
+      llm extract | remains load -
+      remains export | remains load - -d other.db
+
+    \b
     Environment variables:
       REMAINS_DSN         Database file path or libsql:// URL.
       REMAINS_SYNC_URL    Turso cloud URL for embedded replica mode.
@@ -222,21 +228,25 @@ def export(db: Path | None, what: str):
 
 
 @cli.command()
-@click.argument("source", type=click.Path(exists=True, path_type=Path), required=False, default=None)
+@click.argument("source", type=str, required=False, default=None)
 @click.option("--db", "-d", default=None)
-def prompt(source: Path | None, db: str | None):
+def prompt(source: str | None, db: str | None):
     """Generate LLM extraction prompt context from ontology.
 
     \b
-    Three modes:
+    Four modes:
       remains prompt                  Use --db or REMAINS_DSN
       remains prompt my.db            Extract from DB's ontology
       remains prompt ontology.ttl     Standalone from file
+      remains prompt -                Read TTL from stdin
     """
     from remains.prompt import prompt_from_file, prompt_from_store
 
-    if source is not None and not _is_sqlite(source):
-        click.echo(prompt_from_file(source))
+    if source == "-":
+        ttl = sys.stdin.read()
+        click.echo(prompt_from_file(ttl))
+    elif source is not None and not _is_sqlite(Path(source)):
+        click.echo(prompt_from_file(Path(source)))
     else:
         store = RemainsStore(source or db)
         try:
