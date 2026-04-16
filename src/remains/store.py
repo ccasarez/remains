@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -163,24 +162,26 @@ class RemainsStore:
         if self._conn is not None:
             return self._conn
 
+        import libsql
+
         dsn = self._dsn
+        sync_url = os.environ.get("REMAINS_SYNC_URL", "").strip()
+        auth_token = os.environ.get("REMAINS_AUTH_TOKEN", "").strip()
 
         if dsn.startswith(("libsql://", "https://", "http://")):
-            import libsql
             self._conn = libsql.connect(
                 database=dsn,
-                auth_token=os.environ.get("REMAINS_AUTH_TOKEN", "").strip(),
+                auth_token=auth_token,
             )
-        elif os.environ.get("REMAINS_SYNC_URL", "").strip():
-            import libsql
+        elif sync_url:
             self._conn = libsql.connect(
                 database=dsn,
-                sync_url=os.environ["REMAINS_SYNC_URL"].strip(),
-                auth_token=os.environ.get("REMAINS_AUTH_TOKEN", "").strip(),
+                sync_url=sync_url,
+                auth_token=auth_token,
             )
             self._conn.sync()
         else:
-            self._conn = sqlite3.connect(dsn)
+            self._conn = libsql.connect(database=dsn)
 
         try:
             self._conn.execute("PRAGMA journal_mode=WAL")

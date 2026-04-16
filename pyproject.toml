@@ -6,11 +6,11 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 dependencies = [
-    "rdflib>=7.0.0",
-    "pyshacl>=0.26.0",
-    "click>=8.0.0",
-    "libsql>=0.1.0",
-    "networkx>=3.0",
+    "rdflib==7.6.0",
+    "pyshacl==0.31.0",
+    "click==8.3.2",
+    "libsql==0.1.11",
+    "networkx==3.4.2",
 ]
 
 [project.scripts]
@@ -24,7 +24,7 @@ build-backend = "hatchling.build"
 packages = ["src/remains"]
 
 [project.optional-dependencies]
-test = ["pytest>=7.0"]
+test = ["pytest==9.0.3"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
