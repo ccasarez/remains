@@ -128,8 +128,6 @@ def _build_graph_data(
 
         if not s or not o:
             continue
-        if "wasDerivedFrom" in p:
-            continue
 
         s_short = shorten(s)
         o_short = shorten(o)
