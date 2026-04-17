@@ -279,17 +279,24 @@ class RemainsStore:
     # -----------------------------------------------------------------
 
     def load(self, data: Path | str, reasoning_regime: str = "none") -> dict:
-        """Load Turtle data into default graph. Validates against ontology + shapes.
+        """Load Turtle data into default graph. Validates the post-load state
+        (existing default-graph triples unioned with the incoming triples)
+        against ontology + shapes.
 
-        ``reasoning_regime`` controls the pre-validation inference pyshacl applies
-        (``none``, ``rdfs``, ``owlrl``, ``both``). Defaults to ``none``; pass
-        ``owlrl`` when the ontology relies on OWL constructs such as
-        ``owl:AllDisjointClasses``, ``owl:FunctionalProperty``, or
+        Validating the union means references to previously-loaded individuals
+        (e.g. a scenario extraction that cites a Person seeded earlier) are
+        resolved against the full DB rather than requiring every load to
+        re-state every referenced node's identity properties.
+
+        ``reasoning_regime`` controls the pre-validation inference pyshacl
+        applies (``none``, ``rdfs``, ``owlrl``, ``both``). Defaults to
+        ``none``; pass ``owlrl`` when the ontology relies on OWL constructs
+        such as ``owl:AllDisjointClasses``, ``owl:FunctionalProperty``, or
         ``owl:InverseFunctionalProperty`` for validation.
         """
         conn = self._connect()
 
-        data_graph = _parse_turtle(data)
+        incoming_graph = _parse_turtle(data)
 
         schema_graph = self._load_graph(conn, "urn:ontology")
         shacl_graph = self._load_graph(conn, "urn:shacl")
@@ -297,9 +304,16 @@ class RemainsStore:
         if len(schema_graph) == 0:
             raise ValueError("No ontology loaded. Run 'remains init' first.")
 
+        existing_graph = self._load_graph(conn, "")
+        validation_graph = Graph()
+        for t in existing_graph:
+            validation_graph.add(t)
+        for t in incoming_graph:
+            validation_graph.add(t)
+
         result = run_validation(
             schema_graph=schema_graph,
-            data_graph=data_graph,
+            data_graph=validation_graph,
             shacl_graph=shacl_graph if len(shacl_graph) > 0 else None,
             reasoning_regime=reasoning_regime,
         )
@@ -307,7 +321,7 @@ class RemainsStore:
         if not result.conforms:
             return {"loaded": False, "validation": result}
 
-        count = self._insert_triples(conn, data_graph, "")
+        count = self._insert_triples(conn, incoming_graph, "")
         conn.commit()
         return {"loaded": True, "triple_count": count}
 
