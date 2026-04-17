@@ -148,30 +148,41 @@ def load(data: str, db: Path | None, as_json: bool):
 def check(data: str, db: Path | None, regime: str, as_json: bool):
     """Validate RDF data against the store's ontology and SHACL shapes.
 
-    Same validation pipeline as 'remains load', but does not commit
-    anything to the store. The ontology and shapes are always loaded
-    from the database (via --db or REMAINS_DSN).
+    Same validation semantics as 'remains load' — the incoming subgraph is
+    the validation target, and the current DB (ontology, shapes, existing
+    default graph) is used as context for inference and sh:class
+    reference resolution — but does not commit anything to the store.
     Pass '-' to read from stdin.
     """
-    from rdflib import Graph
-    from remains.store import run_validation
-
     store = _open_store(db)
     try:
-        conn = store._connect()
-        schema_graph = store._load_graph(conn, "urn:ontology")
-        shacl_graph = store._load_graph(conn, "urn:shacl")
-
         ttl = _read_turtle(data)
-        data_graph = Graph()
-        data_graph.parse(data=ttl, format="turtle")
+        result = store.check(ttl, reasoning_regime=regime)
+    finally:
+        store.close()
 
-        result = run_validation(
-            schema_graph=schema_graph,
-            data_graph=data_graph,
-            shacl_graph=shacl_graph if len(shacl_graph) > 0 else None,
-            reasoning_regime=regime,
-        )
+    if as_json:
+        click.echo(json.dumps(result.to_dict(), indent=2))
+    else:
+        click.echo(result.summary())
+
+    sys.exit(0 if result.conforms else 1)
+
+
+@cli.command()
+@click.option("--db", "-d", type=click.Path(path_type=Path), default=None)
+@click.option("--regime", "-r", type=click.Choice(["none", "rdfs", "owlrl", "both"]), default="none")
+@click.option("--json", "as_json", is_flag=True)
+def validate(db: Path | None, regime: str, as_json: bool):
+    """Re-validate the ENTIRE default graph against current shapes.
+
+    Use this for audits after shapes change, or periodically to catch
+    drift. Unlike 'remains load' / 'remains check' (which scope
+    validation to an incoming subgraph), this inspects all stored data.
+    """
+    store = _open_store(db)
+    try:
+        result = store.validate_store(reasoning_regime=regime)
     finally:
         store.close()
 

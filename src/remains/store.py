@@ -279,14 +279,13 @@ class RemainsStore:
     # -----------------------------------------------------------------
 
     def load(self, data: Path | str, reasoning_regime: str = "none") -> dict:
-        """Load Turtle data into default graph. Validates the post-load state
-        (existing default-graph triples unioned with the incoming triples)
-        against ontology + shapes.
+        """Load Turtle data into the default graph.
 
-        Validating the union means references to previously-loaded individuals
-        (e.g. a scenario extraction that cites a Person seeded earlier) are
-        resolved against the full DB rather than requiring every load to
-        re-state every referenced node's identity properties.
+        Validates ONLY the incoming subgraph against ontology + shapes, with
+        the current DB (ontology + shapes + existing default-graph triples)
+        providing context for inference and ``sh:class`` reference
+        resolution. Existing data is not re-validated; to audit historical
+        data after shapes tighten, call ``validate_store()`` explicitly.
 
         ``reasoning_regime`` controls the pre-validation inference pyshacl
         applies (``none``, ``rdfs``, ``owlrl``, ``both``). Defaults to
@@ -294,36 +293,64 @@ class RemainsStore:
         such as ``owl:AllDisjointClasses``, ``owl:FunctionalProperty``, or
         ``owl:InverseFunctionalProperty`` for validation.
         """
-        conn = self._connect()
-
         incoming_graph = _parse_turtle(data)
+        result = self._check_graph(incoming_graph, reasoning_regime)
+        if not result.conforms:
+            return {"loaded": False, "validation": result}
 
+        conn = self._connect()
+        count = self._insert_triples(conn, incoming_graph, "")
+        conn.commit()
+        return {"loaded": True, "triple_count": count}
+
+    def check(self, data: Path | str, reasoning_regime: str = "none") -> ValidationResult:
+        """Validate an incoming subgraph against shapes without mutating the
+        store.
+
+        Same semantics as ``load`` minus the write: only the incoming
+        triples are the validation target; current DB contents (ontology,
+        shapes, default graph) provide context for inference and
+        ``sh:class`` resolution.
+        """
+        incoming_graph = _parse_turtle(data)
+        return self._check_graph(incoming_graph, reasoning_regime)
+
+    def validate_store(self, reasoning_regime: str = "none") -> ValidationResult:
+        """Re-validate the entire default graph against current shapes.
+
+        Use this for audits after shapes change, or periodically to catch
+        drift from out-of-band writes. Unlike ``load``/``check``, which
+        scope validation to the incoming subgraph, this inspects all data.
+        """
+        conn = self._connect()
         schema_graph = self._load_graph(conn, "urn:ontology")
         shacl_graph = self._load_graph(conn, "urn:shacl")
+        data_graph = self._load_graph(conn, "")
 
-        if len(schema_graph) == 0:
-            raise ValueError("No ontology loaded. Run 'remains init' first.")
-
-        existing_graph = self._load_graph(conn, "")
-        validation_graph = Graph()
-        for t in existing_graph:
-            validation_graph.add(t)
-        for t in incoming_graph:
-            validation_graph.add(t)
-
-        result = run_validation(
+        return run_validation(
             schema_graph=schema_graph,
-            data_graph=validation_graph,
+            data_graph=data_graph,
             shacl_graph=shacl_graph if len(shacl_graph) > 0 else None,
             reasoning_regime=reasoning_regime,
         )
 
-        if not result.conforms:
-            return {"loaded": False, "validation": result}
+    def _check_graph(
+        self, incoming_graph: Graph, reasoning_regime: str
+    ) -> ValidationResult:
+        conn = self._connect()
+        schema_graph = self._load_graph(conn, "urn:ontology")
+        if len(schema_graph) == 0:
+            raise ValueError("No ontology loaded. Run 'remains init' first.")
+        shacl_graph = self._load_graph(conn, "urn:shacl")
+        existing_graph = self._load_graph(conn, "")
 
-        count = self._insert_triples(conn, incoming_graph, "")
-        conn.commit()
-        return {"loaded": True, "triple_count": count}
+        return run_validation_incoming(
+            schema_graph=schema_graph,
+            existing_graph=existing_graph,
+            incoming_graph=incoming_graph,
+            shacl_graph=shacl_graph if len(shacl_graph) > 0 else None,
+            reasoning_regime=reasoning_regime,
+        )
 
 
 
@@ -596,12 +623,16 @@ def _parse_shacl_report(
     results_graph,
     results_text: str,
     exclude_focus_nodes: Optional[set] = None,
+    include_only_focus_nodes: Optional[set] = None,
 ) -> list[str]:
     """Extract human-readable violation messages from a pyshacl report.
 
-    ``exclude_focus_nodes`` is an optional set of nodes whose validation
-    results should be dropped (used to filter out violations that target
-    ontology nodes rather than user data).
+    ``exclude_focus_nodes`` drops violations whose focus node is in the set
+    (e.g. ontology-only nodes).
+
+    ``include_only_focus_nodes``, when provided, keeps only violations
+    whose focus node is in the set (e.g. subjects of the incoming
+    subgraph during incremental validation). ``None`` disables the filter.
     """
     rg: Optional[Graph] = None
     if isinstance(results_graph, (str, bytes)):
@@ -617,6 +648,9 @@ def _parse_shacl_report(
             focus = rg.value(result_node, SH.focusNode)
             if focus is not None and focus in excluded:
                 continue
+            if include_only_focus_nodes is not None:
+                if focus is None or focus not in include_only_focus_nodes:
+                    continue
             path = rg.value(result_node, SH.resultPath)
             msg = rg.value(result_node, SH.resultMessage)
             focus_s = _short(focus) if focus else "?"
@@ -624,12 +658,82 @@ def _parse_shacl_report(
             msg_s = str(msg) if msg else "constraint violated"
             violations.append(f"[{focus_s}] {path_s}: {msg_s}")
     else:
+        # Text-only fallback: we cannot identify focus nodes, so the
+        # include/exclude filters are not applied. Callers relying on
+        # filtering should ensure a results_graph is provided.
         for line in (results_text or "").strip().split("\n"):
             line = line.strip()
             if line.startswith("Message:"):
                 violations.append(line)
 
     return violations
+
+
+def run_validation_incoming(
+    schema_graph: Graph,
+    existing_graph: Graph,
+    incoming_graph: Graph,
+    shacl_graph: Optional[Graph] = None,
+    reasoning_regime: str = "none",
+) -> ValidationResult:
+    """Validate the INCOMING subgraph using existing data + ontology as
+    context.
+
+    The combined ``existing + incoming + schema`` graph is passed to
+    pyshacl so inference and ``sh:class`` reference resolution can see the
+    whole picture, but violations are filtered to those whose focus node
+    is a subject asserted in the incoming subgraph. Existing-data
+    violations under current shapes are NOT reported here — use
+    ``run_validation`` (or ``RemainsStore.validate_store``) for full-DB
+    audits.
+    """
+    from pyshacl import validate
+
+    result = ValidationResult()
+
+    if shacl_graph is None or len(shacl_graph) == 0:
+        result.conforms = True
+        return result
+
+    data_graph = Graph()
+    for t in existing_graph:
+        data_graph.add(t)
+    for t in incoming_graph:
+        data_graph.add(t)
+
+    ont_graph = schema_graph if schema_graph is not None and len(schema_graph) > 0 else None
+
+    conforms, results_graph, results_text = validate(
+        data_graph,
+        shacl_graph=shacl_graph,
+        ont_graph=ont_graph,
+        inference=reasoning_regime,
+        advanced=True,
+        serialize_report_graph="turtle",
+    )
+
+    incoming_subjects: set = {
+        s for s, _, _ in incoming_graph if isinstance(s, (URIRef, BNode))
+    }
+
+    ontology_only_nodes: set = set()
+    if ont_graph is not None:
+        ontology_only_nodes = _collect_ontology_nodes(ont_graph) - _collect_data_targets(data_graph)
+
+    violations = _parse_shacl_report(
+        results_graph,
+        results_text,
+        exclude_focus_nodes=ontology_only_nodes,
+        include_only_focus_nodes=incoming_subjects,
+    )
+
+    conforms = not violations
+    result.conforms = bool(conforms)
+    result.shacl_conforms = bool(conforms)
+    if not conforms:
+        result.shacl_violations = violations
+
+    return result
 
 
 def validate_files(
