@@ -278,8 +278,15 @@ class RemainsStore:
     # Load
     # -----------------------------------------------------------------
 
-    def load(self, data: Path | str) -> dict:
-        """Load Turtle data into default graph. Validates against ontology + shapes."""
+    def load(self, data: Path | str, reasoning_regime: str = "none") -> dict:
+        """Load Turtle data into default graph. Validates against ontology + shapes.
+
+        ``reasoning_regime`` controls the pre-validation inference pyshacl applies
+        (``none``, ``rdfs``, ``owlrl``, ``both``). Defaults to ``none``; pass
+        ``owlrl`` when the ontology relies on OWL constructs such as
+        ``owl:AllDisjointClasses``, ``owl:FunctionalProperty``, or
+        ``owl:InverseFunctionalProperty`` for validation.
+        """
         conn = self._connect()
 
         data_graph = _parse_turtle(data)
@@ -294,6 +301,7 @@ class RemainsStore:
             schema_graph=schema_graph,
             data_graph=data_graph,
             shacl_graph=shacl_graph if len(shacl_graph) > 0 else None,
+            reasoning_regime=reasoning_regime,
         )
 
         if not result.conforms:
