@@ -9,6 +9,33 @@ description: >
 
 # Remains — Fact Store
 
+## Installation and Invocation — Read This First
+
+**remains is a uv tool. It is NOT a Python library.**
+
+```bash
+# Install (one-time)
+uv tool install remains
+
+# Every command runs as a top-level CLI — no `uv run`, no `import remains`
+remains --help
+remains query "SELECT ..."
+remains load facts.ttl
+```
+
+**Never do any of these:**
+```python
+# ❌ WRONG — remains has no Python API
+import remains
+from remains import ...
+uv run remains   # ❌ not a script — it's an installed tool
+python -m remains  # ❌ wrong
+```
+
+If `remains` is not on PATH, install it: `uv tool install remains`.
+
+---
+
 remains is an RDF triple store backed by a remote Turso database
 (`REMAINS_DSN` is preconfigured).
 
