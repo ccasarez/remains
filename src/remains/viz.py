@@ -89,11 +89,18 @@ def _build_graph_data(
     """
     label_rows = _select_rows(graph, label_sparql)
     labels = {}
+    name_labels = {}
     for row in label_rows:
         s = row.get("s", "")
-        label = row.get("label", "") or row.get("name", "")
-        if s and label:
-            labels[s] = label
+        rdfs_label = row.get("label", "")
+        name_label = row.get("name", "")
+        if s and rdfs_label:
+            labels[s] = rdfs_label
+        elif s and name_label:
+            name_labels[s] = name_label
+    for s, name in name_labels.items():
+        if s not in labels:
+            labels[s] = name
 
     # Get all literal (data) properties for nodes
     props_sparql = """

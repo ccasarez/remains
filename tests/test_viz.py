@@ -122,6 +122,67 @@ class TestBuildGraphData:
             assert "shacl" not in nid.lower()
 
 
+@pytest.fixture
+def rdfs_label_store(tmp_path):
+    """Store where nodes have rdfs:label, with and without a name property."""
+    db = tmp_path / "label_test.db"
+    store = RemainsStore(str(db))
+
+    schema = tmp_path / "schema.ttl"
+    schema.write_text("""
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix ex: <http://example.com/ns#> .
+
+ex:Person a owl:Class .
+ex:Org a owl:Class .
+ex:worksAt a owl:ObjectProperty ; rdfs:domain ex:Person ; rdfs:range ex:Org .
+ex:name a owl:DatatypeProperty .
+""")
+    store.init(ontology_path=schema)
+
+    data = tmp_path / "data.ttl"
+    data.write_text("""
+@prefix ex: <http://example.com/ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:alice a ex:Person ;
+    rdfs:label "Alice Label" ;
+    ex:name "alice_name"^^xsd:string ;
+    ex:worksAt ex:acme .
+
+ex:acme a ex:Org ;
+    rdfs:label "Acme Label" ;
+    ex:worksAt ex:globex .
+
+ex:globex a ex:Org ;
+    rdfs:label "Globex Label" .
+""")
+    result = store.load(data)
+    assert result["loaded"]
+
+    yield store
+    store.close()
+
+
+class TestNodeLabeling:
+    def test_rdfs_label_used_as_node_label(self, rdfs_label_store):
+        data = _build_graph_data(rdfs_label_store)
+        labels_by_id = {n["id"]: n["label"] for n in data["nodes"]}
+        assert labels_by_id["ex:alice"] == "Alice Label"
+
+    def test_rdfs_label_beats_name_property(self, rdfs_label_store):
+        data = _build_graph_data(rdfs_label_store)
+        labels_by_id = {n["id"]: n["label"] for n in data["nodes"]}
+        assert labels_by_id["ex:alice"] != "alice_name"
+
+    def test_rdfs_label_without_name_property(self, rdfs_label_store):
+        data = _build_graph_data(rdfs_label_store)
+        labels_by_id = {n["id"]: n["label"] for n in data["nodes"]}
+        assert labels_by_id["ex:acme"] == "Acme Label"
+
+
 class TestAnalytics:
     def test_community_detection(self, loaded_store):
         data = _build_graph_data(loaded_store)
